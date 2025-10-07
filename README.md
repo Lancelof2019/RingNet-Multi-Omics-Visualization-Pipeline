@@ -63,7 +63,7 @@ The interface supports various functionalities including filtering, color adjust
                   │
                   ▼
    ┌────────────────────────────────────────────────────────┐
-   │ viewer.html/nodir_ viewer.html                         │
+   │ viewer.html or nodir_ viewer.html                      │
    │ Fetches uploads/sid/community_map                      │
    │ Visualizes with D3.js — filtering, coloring, exporting │
    └────────────────────────────────────────────────────────┘
