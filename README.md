@@ -1,4 +1,4 @@
-# cmt_figures_multi_single — System Overview
+# System Overview
 
 1.Upload Index Page (upload_index.php):
 The user uploads multiple CSV files, including edges, nodes, megList, expression, methylation, SNV, CNV, and stage.
@@ -14,3 +14,56 @@ The R analysis generates a community_map_top100.json file and returns a front-en
 4.Front-End Visualization (viewer.html / nodir_viewer.html):
 The visualization pages load the generated JSON file and use D3.js to render the multi-omics network.
 The interface supports various functionalities including filtering, color adjustment, and exporting visual results.
+
+# Files introduction of the system
+| **Module** | **Input** | **Output** | **Core Function** |
+|-------------|------------|-------------|--------------------|
+| upload.html | CSV files | FormData | Front-end entry for file uploading |
+| upload.php | FormData | JSON ({sid, paths}) | Creates a session directory and saves uploaded files |
+| run_r_script.php | Session ID (sid) | JSON ({viewerUrl, log}) | Executes R analysis and returns result file paths |
+| script.R | CSV file paths | JSON file | Performs data analysis and generates the network structure |
+| viewer.html | JSON file | SVG / D3 visualization | Visualizes the network and supports export operations |
+
+# System Workflow
+```
+   ┌─────────────────────────────────┐
+   │  User opens upload.html         │
+   │  Selects and uploads CSV files  │
+   └─────────────┬───────────────────┘
+                 │
+    [FormData POST → /upload.php]
+                 │
+                 ▼
+   ┌────────────────────────────────────────────┐
+   │ upload.php                                 │
+   │ Validates files → Creates session ID (sid) │
+   │ → Saves files to uploads/sid/*.csv         │
+   │ → Returns {success, sid, paths[]}          │
+   └────────────────┬───────────────────────────┘
+                    │
+       [Front-end shows "Run R Script" button]
+                    │
+                    ▼
+   ┌─────────────────────────────────────────────┐
+   │ run_r_script.php                            │
+   │ Receives sid → Scans uploads/sid/ directory │
+   │ → Builds R command → Executes Rscript       │
+   │ → Generates community_map_top100.json       │
+   │ → Returns viewer URLs                       │
+   └──────────────────┬──────────────────────────┘
+                      │
+                      ▼
+      ┌───────────────────────────────────┐
+      │ script.R                          │
+      │ Reads multi-omics data            │
+      │ Builds igraph community structure │
+      │ Computes node features and layout │
+      │ Outputs JSON network map          │
+      └───────────┬───────────────────────┘
+                  │
+                  ▼
+   ┌────────────────────────────────────────────────────────┐
+   │ viewer.html                                            │
+   │ Fetches uploads/sid/community_map                      │
+   │ Visualizes with D3.js — filtering, coloring, exporting │
+   └────────────────────────────────────────────────────────┘
