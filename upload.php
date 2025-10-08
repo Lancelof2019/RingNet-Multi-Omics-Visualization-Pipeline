@@ -8,18 +8,18 @@ if (!is_dir($dir) && !mkdir($dir,0755,true)) {
   echo json_encode(['success'=>false,'error'=>"mkdir $dir failed"]); exit;
 }
 
-/* 定义字段集 */
-$required = ['graph_edges','graph_nodes','megList'];   // <-- 这里改了
+/* Define field set */
+$required = ['graph_edges','graph_nodes','megList'];   
 //$optional = ['gene_expression','methylation','snv','cnv'];
 $optional = ['gene_expression','methylation','snv','cnv','stage'];
-/* ---------- 校验必选 ---------- */
+/* ---------- Validate required files ---------- */
 foreach ($required as $key) {
   if (empty($_FILES[$key]) || $_FILES[$key]['error']!==UPLOAD_ERR_OK) {
     echo json_encode(['success'=>false,'error'=>"$key file missing or error"]); exit;
   }
 }
 
-/* ---------- 至少一个可选 ---------- */
+/* ---------- At least one optional file required ---------- */
 $opt_ok = false;
 foreach ($optional as $key) {
   if (!empty($_FILES[$key]) && $_FILES[$key]['error']===UPLOAD_ERR_OK) {
@@ -35,7 +35,7 @@ $sessionUploadDir = $dir . $sid;
 if (!mkdir($sessionUploadDir,0755,true)) {
   echo json_encode(['success'=>false,'error'=>"mkdir $sessionUploadDir failed"]); exit;
 }
-/* ---------- 统一搬文件 ---------- */
+
 $allKeys = array_merge($required,$optional);
 $paths   = [];
 
@@ -43,7 +43,7 @@ foreach ($allKeys as $key) {
   if (empty($_FILES[$key]) || $_FILES[$key]['error']!==UPLOAD_ERR_OK) continue;
 
   #$name = basename($_FILES[$key]['name']);
-  // 如需避免重名，可在此加日期/UUID
+// To avoid filename conflicts, you can append a date or UUID here
   #$target = $dir . $name;
   
   $orig = basename($_FILES[$key]['name']);
@@ -51,7 +51,7 @@ foreach ($allKeys as $key) {
   $name = preg_replace('/[^A-Za-z0-9._-]/', '_', $orig);
   if ($name === '') $name = $key . '.csv';
 
-  $target = $sessionUploadDir . '/' . $name;  // ★ 存到会话目录
+  $target = $sessionUploadDir . '/' . $name;  //  Save files into the session directory
 
   if (!move_uploaded_file($_FILES[$key]['tmp_name'],$target)) {
     echo json_encode(['success'=>false,'error'=>"move $name failed"]); exit;
