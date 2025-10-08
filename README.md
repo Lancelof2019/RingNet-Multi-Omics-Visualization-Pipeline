@@ -1,4 +1,27 @@
-# System Overview
+## 🧬 Multi-Omics Visualization Pipeline
+
+A lightweight web-based pipeline for **multi-omics network analysis and visualization**.  
+This system allows users to upload CSV datasets, run integrated R scripts for data processing,  
+and visualize community-level biological networks through an interactive D3.js front-end.
+
+---
+
+## Features
+
+-  Upload and manage multiple omics data files:
+  - **Expression** (`expression.csv`)
+  - **Methylation** (`methylation.csv`)
+  - **SNV** (`snv.csv`)
+  - **CNV** (`cnv.csv`)
+  - **Stage / Clinical data** (`stage.csv`)
+  - **Edges**, **Nodes**, and **megList** network definitions
+-  Automated R backend for community detection and JSON generation  
+-  Interactive D3.js front-end with filtering, color adjustment, and export  
+-  Support for both **directed** and **undirected** network modes  
+-  Export results as SVG or JSON files  
+
+---
+## System Overview
 
 1.Upload Index Page (`upload_index.php`):
 The user uploads multiple CSV files, including edges, nodes, megList, expression, methylation, SNV, CNV, and stage.
@@ -15,7 +38,7 @@ The R analysis generates a community_map_top100.json file and returns a front-en
 The visualization pages load the generated JSON file and use D3.js to render the multi-omics network.
 The interface supports various functionalities including filtering, color adjustment, and exporting visual results.
 
-# Files introduction of the system
+## Files introduction of the system
 | **Module** | **Input** | **Output** | **Core Function** |
 |-------------|------------|-------------|--------------------|
 | upload.html | CSV files | FormData | Front-end entry for file uploading |
@@ -25,7 +48,7 @@ The interface supports various functionalities including filtering, color adjust
 | viewer.html | JSON file | SVG / D3 visualization | Visualizes the network and supports export operations |
 | nodir_viewer.html | JSON file | SVG / D3 visualization | Visualizes the network without node directions and supports export operations |
 
-# System Workflow
+## System Workflow
 ```
    ┌─────────────────────────────────┐
    │  User opens upload.html         │
