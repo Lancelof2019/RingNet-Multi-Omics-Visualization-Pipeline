@@ -5,14 +5,13 @@
   <title>Upload 6 CSV Files</title>
   <style>
     :root{
-      /* 左侧标签列固定宽度，按需要改成 240–320 */
       --label-w: 280px;
       --gap: 12px;
     }
 
     body{font-family:Arial,Helvetica,sans-serif;margin:2rem}
 
-    /* 每一行：左列文字 + 右列文件选择控件 */
+    /* Each row: left column = label text, right column = file input control */
     label.file-label{
       display:flex;
       align-items:center;
@@ -21,7 +20,7 @@
       color:#666;
     }
 
-    /* 左列固定宽度，避免因文字长短错位 */
+    /* Fix the width of the left column to prevent misalignment due to label length */
     label.file-label span{
       flex:0 0 var(--label-w);
       white-space:nowrap;
@@ -29,7 +28,7 @@
       text-overflow:ellipsis;
     }
 
-    /* 右列控件对齐 */
+    /* Align file input controls in the right column */
     label.file-label input[type=file]{ margin-left:0; }
 
     .required span::after{ content:" *"; color:#d00; margin-left:4px; }
@@ -44,7 +43,7 @@
     }
     @keyframes spin{ to{ transform:rotate(360deg) } }
 
-    /* 让“Upload Files”按钮与右列对齐 */
+    /* Align the “Upload Files” button with the right column */
     #uploadForm > button[type="submit"]{
       margin-left:0;
     }
@@ -54,7 +53,7 @@
 <h2>Upload CSV Files</h2>
 
 <form id="uploadForm" enctype="multipart/form-data" method="POST" action="upload.php">
-  <!-- 两个必选 -->
+  /* Two mandatory files */
   <label class="file-label required"><span>Graph Edges (.csv)</span>
     <input type="file" name="graph_edges" accept=".csv" required>
   </label>
@@ -64,7 +63,7 @@
   <label class="file-label required"><span>Node Group (.csv)</span>
     <input type="file" name="megList" accept=".csv" required>
   </label>
-  <!-- 四选一 -->
+  /* Four optional files */
   <label class="file-label"><span>Data1 (continuous real value)</span><input type="file" name="gene_expression" accept=".csv,.tsv"></label>
   <label class="file-label"><span>Data2 (continuous real value)</span><input type="file" name="methylation" accept=".csv,.tsv"></label>
   <label class="file-label"><span>Data3 (integer value)</span><input type="file" name="snv" accept=".csv,.tsv"></label>
@@ -92,7 +91,7 @@ let currentSid = null; // ★
 const reqThree = ['graph_edges','graph_nodes','megList'];
 //const optFour = ['gene_expression','methylation','snv','cnv'];
 const optFive = ['gene_expression','methylation','snv','cnv','stage'];
-/* 文件名回显 */
+/* Display uploaded file name */
 form.querySelectorAll('input[type=file]').forEach(inp=>{
   inp.addEventListener('change',()=>{
     const span = inp.closest('label').querySelector('span');
@@ -110,17 +109,13 @@ form.addEventListener('submit',e=>{
   const btn = form.querySelector('button');
   btn.disabled = true;
 
-  /* 校验 */
+  /* Validation */
  for (const k of reqThree) {
   if (!form.elements[k] || !form.elements[k].files.length) {
     return showErr(`${k} required`, btn);
   }
  }
- /* if (!optFour.some(k=>form.elements[k].files.length)){
-    showErr('One of gene expression / methylation / snv / cnv required', btn);
-    return;
-  }
-  */
+
  if (!optFive.some(k=>form.elements[k].files.length)){
    showErr('One of gene expression / methylation / snv / cnv / stage is required', btn);
     return;
@@ -128,8 +123,8 @@ form.addEventListener('submit',e=>{
   fetch('upload.php',{method:'POST',body:new FormData(form)})
 
   .then(async r => {
-    const text = await r.text();       // 先读原文
-    try { return JSON.parse(text); }   // 尝试解析 JSON
+    const text = await r.text();       // Read the original text from response 
+    try { return JSON.parse(text); }   // Try to parse JSON
     catch {
       throw new Error(`Server did not return JSON.\n--- Raw response ---\n${text}`);
     }
@@ -139,7 +134,7 @@ form.addEventListener('submit',e=>{
       btn.disabled = false;
       if(js.success){
 	uploadedPaths = js.paths;
-	currentSid = js.sid; // ★
+	currentSid = js.sid; 
         output.innerHTML = `<span class="ok">Uploaded:</span>\n${js.paths.join('\n')}`;
         runBox.style.display = 'block';
       }else{ showErr(js.error, btn); }
@@ -152,7 +147,7 @@ function showErr(msg, btn){
   output.innerHTML = `<span class="err">${msg}</span>`;
 }
 
-/* 运行 R 脚本 */
+/* Run R script */
 runBtn.addEventListener('click',()=>{
   if(!uploadedPaths.length||!currentSid) return;
   runBtn.disabled = true;
@@ -161,9 +156,9 @@ runBtn.addEventListener('click',()=>{
   //const qs = uploadedPaths.map(p=>'files[]='+encodeURIComponent(p)).join('&');
   fetch('run_r_script.php?sid=' + encodeURIComponent(currentSid))
     .then(async r => {
-    const raw = await r.text();               // 先拿原文
+    const raw = await r.text();              
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${raw.slice(0,500)}`);
-    try { return JSON.parse(raw); }           // 再尝试解析
+    try { return JSON.parse(raw); }           // Attempt to parse again
     catch (e) {
       console.error('RAW RESPONSE >>>\n' + raw);
       throw new Error('Non-JSON response. See console for raw text.');
@@ -181,15 +176,14 @@ runBtn.addEventListener('click',()=>{
 		//output.innerHTML += `\n\n<a href="${js.viewerUrl}" target="_blank" rel="noopener">Open Result Viewer</a>`;
 	    const noDirUrl = js.viewerUrlNoDir||(js.viewerUrl + js.viewerUrl.includes('?') ? '&' : '?') + 'mode=undirected';
 
-	    // 同时给出两个入口：有向 / 无向
-	    //
-	    //
+	   /* Provide two visualization entry points: Directed / Undirected */
+
 	    const linksHtml = `<br><div style="text-align:left;"><a href="${js.viewerUrl}" target="_blank" rel="noopener">Open Result Viewer</a>&nbsp;|&nbsp; <a href="${noDirUrl}" target="_blank" rel="noopener">Open Result Viewer (no direction)</a> </div>`;
 	    //output.insertAdjacentHTML('beforeend', linksHtml);
 	    output.insertAdjacentHTML('beforeend', linksHtml.replace(/^\s+/gm, ''));
         }
-        // 如需在同标签直接跳转，也可以：
-        // window.location.href = js.viewerUrl;
+        /* Alternatively, enable direct switching within the same tab */
+    
       } else {
         output.textContent += `\n\n[R] FAILED: ${js.error || 'unknown error'}\n`;
         if (js.r_log_head) output.textContent += js.r_log_head;
