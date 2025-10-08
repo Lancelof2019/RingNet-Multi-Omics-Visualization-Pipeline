@@ -201,14 +201,14 @@
     let currentData = null;
     let lastLayout = []; 
     const viewWidth  = window.innerWidth;
-    const viewHeight = window.innerHeight - 100;  // 留出上方 controls
+    const viewHeight = window.innerHeight - 100;  
 
-    // 这里先把 SVG 设成基准大小
+    // set SVG in standard size
     const svg = d3.select('#networkViz')
       .attr('width',  viewWidth)
       .attr('height', viewHeight);
     
-//
+
 
     let colorConfig = {};
 
@@ -570,24 +570,21 @@ function drawNetwork(data) {
 
   const zoom = d3.zoom()
   .filter(e =>
-    e.type === "mousedown"   ||   // 鼠标拖拽
-    e.type === "mousemove"   ||   // 拖拽过程
-    e.type === "touchstart"       // 触摸拖拽
+    e.type === "mousedown"   ||   // mouse drag down
+    e.type === "mousemove"   ||   // mouse dragging
+    e.type === "touchstart"       // touch dragging
   )
   .on("zoom", e => {
     currentTransform = e.transform;
     container.attr("transform", currentTransform);
   });
 
-// 绑定 zoom，并移除可能残留的 wheel 监听（双保险）
+// Bind zoom and remove any residual wheel listeners (double safety)）
 svg.call(zoom)
    .call(zoom.transform, currentTransform)
-   .on("wheel.zoom", null);      // ← wheel 事件被完全解绑
+   .on("wheel.zoom", null);      // wheel event fully unbound
 
-// 4. 应用 zoom 行为并设置初始位置
-   //svg.call(zoom).call(zoom.transform, currentTransform);
-
-
+// Apply zoom behavior and set initial position
 // zoom out button
   d3.select("#zoomIn").on("click", () => {
     currentTransform = currentTransform.scale(1.2);
@@ -601,7 +598,7 @@ svg.call(zoom)
   const width = +svg.attr("width") || 1000;
   const height = +svg.attr("height") || 700;
 
-  // 3. nodes/edges 副本并过滤悬空边
+  //  Clone nodes/edges and filter out dangling edges
   const nodes = data.nodes.map(d => Object.assign({}, d));
   const nodeIds = new Set(nodes.map(d => String(Array.isArray(d.id) ? d.id[0] : d.id)));
   const nodeById = new Map(nodes.map(d => [String(Array.isArray(d.id) ? d.id[0] : d.id), d]));
@@ -623,7 +620,7 @@ svg.call(zoom)
   let eMin = +d3.select('#eRangeMin').property('value');
   let eMax = +d3.select('#eRangeMax').property('value');
 
-  // 用户把最小/最大填反了 → 交换
+  // If user swaps min/max values → exchange them
   if (Number.isFinite(eMin) && Number.isFinite(eMax) && eMin > eMax) [eMin, eMax] = [eMax, eMin];
 
   const toNum = v => {
@@ -636,7 +633,7 @@ svg.call(zoom)
   .map(e => {
     const sourceId = getId(e.source);
     const targetId = getId(e.target);
-    // 先取选中的度量（w_raw / w_norm / w_z），不行再退回 weight，再不行给 0
+    // Get selected metric first (w_raw / w_norm / w_z); fallback to weight; if unavailable, use 0
     const metW = toNum(e?.[edgeMetric]);
     const rawW = toNum(e?.weight);
     const safeW = Number.isFinite(metW) ? metW : (Number.isFinite(rawW) ? rawW : 0);
@@ -645,7 +642,7 @@ svg.call(zoom)
       ...e,
       source: sourceId,
       target: targetId,
-      weight: Number.isFinite(rawW) ? rawW : 0,   // save original weight（数值化）
+      weight: Number.isFinite(rawW) ? rawW : 0,   // save original weight
       _w: safeW,                                   // choose metric and draw based on the metric
       _inRange: (safeW >= eMin && safeW <= eMax)
     };
@@ -695,10 +692,10 @@ const CONST_SW = Math.max(2.5, sw(maxAbsW));
   const straight = edges.filter(d => d._parallel === 1);
   const curved = edges.filter(d => d._parallel > 1);
 
-  // 5. 力学仿真
-  // 如果有历史位置，可以保留初始 layout
+  //  Force simulation
+  // Preserve initial layout if historical positions exist
   nodes.forEach((d, i) => {
-  // 如果 x/y 是 [value]，提取为数字
+  // If x/y are [values], extract numeric values
   if (Array.isArray(d.x) && d.x.length === 1) {
     d.x = d.x[0];
   }
@@ -706,7 +703,7 @@ const CONST_SW = Math.max(2.5, sw(maxAbsW));
     d.y = d.y[0];
   }
 
-  // 类型检查与修复：不是数字或是 NaN，就用默认圆形布局
+  // Type check & fix: if not a number or NaN → use default circular layout
   if (typeof d.x !== 'number' || isNaN(d.x)) {
     d.x = width / 2 + 100 * Math.cos(2 * Math.PI * i / nodes.length);
   }
@@ -720,7 +717,7 @@ const CONST_SW = Math.max(2.5, sw(maxAbsW));
 
 
 
-  // 6. 拖拽
+  // Dragging
   function drag(sim) {
     function dragstarted(event, d) {
       if (!event.active) sim.alphaTarget(0.5).restart();
@@ -744,8 +741,8 @@ const edgeSelStraight = container.selectAll('line.edge')
   .data(straight)
   .enter().append('line')
   .attr('class', 'edge')
-  .attr('stroke-width', CONST_SW)       // 统一线宽
-  .attr('stroke', d => edgeColor(d))    // 渐变颜色
+  .attr('stroke-width', CONST_SW)       // Unify line width
+  .attr('stroke', d => edgeColor(d))    // Gradient edge color
   .attr('opacity', d => (d._highlight && d._inRange) ? 1 : 0.2)
   .attr('marker-end', 'url(#arrow)');
 
@@ -754,8 +751,8 @@ const edgeSelCurved = container.selectAll('path.edge')
   .enter().append('path')
   .attr('class', 'edge')
   .attr('fill', 'none')
-  .attr('stroke-width', CONST_SW)       // 统一线宽
-  .attr('stroke', d => edgeColor(d))    // 渐变颜色
+  .attr('stroke-width', CONST_SW)       // Unify line width
+  .attr('stroke', d => edgeColor(d))    // Gradient edge color
   .attr('opacity', d => (d._highlight && d._inRange) ? 1 : 0.2)
   .attr('marker-end', 'url(#arrow)');
  
@@ -773,14 +770,14 @@ const edgeSelCurved = container.selectAll('path.edge')
     d3.select('#networkViz').selectAll('*').remove();
     return;
   }
-  // 8. 节点group + 多环图 + 拖拽
+  // Node groups + multi-ring charts + dragging
   const barW = 4, gap = 2;
   const sampleCount = nodes[0].exp_vals.length, angleStep = 2 * Math.PI / sampleCount;
   const nodeSel = container.selectAll('g.node')
     .data(nodes)
     .enter().append('g')
     .attr('class', 'node')
-    .call(drag(simulation)); // <== 拖拽交互
+    .call(drag(simulation)); // Drag interaction
     for (let i = 0; i < 4; ++i) simulation.tick();
     simulation.stop();
     ticked();
@@ -850,34 +847,34 @@ const edgeSelCurved = container.selectAll('path.edge')
       .style('pointer-events', 'none');
   });
 
-  // 9. tick回调：力学刷新坐标
+  // Tick callback: refresh coordinates by force simulation
   function ticked() {
-    // 刷新直线边
-     edgeSelStraight
-  .attr('x1', d => {
-    const x = nodeById.get(getId(d.source))?.x ?? 0;
-    return x;
-  })
-  .attr('y1', d => nodeById.get(getId(d.source))?.y ?? 0)
-  .attr('x2', d => nodeById.get(getId(d.target))?.x ?? 0)
-  .attr('y2', d => nodeById.get(getId(d.target))?.y ?? 0);
-
-edgeSelCurved
-  .attr('d', d => {
-    const s = nodeById.get(getId(d.source));
-    const t = nodeById.get(getId(d.target));
-    if (!s || !t) {
-      console.warn(`❌ source or target can not be found:`, d.source, d.target);
-      return '';
-    }
-    const mx = (s.x + t.x) / 2;
-    const my = (s.y + t.y) / 2;
-    const offset = 25;
-    const dir = (d._parallel % 2) ? -1 : +1;
-    const cx_ctrl = mx;
-    const cy_ctrl = my + dir * offset;
-    return `M${s.x},${s.y} Q${cx_ctrl},${cy_ctrl} ${t.x},${t.y}`;
-  });
+    // Refresh straight edges
+	 edgeSelStraight
+	  .attr('x1', d => {
+	    const x = nodeById.get(getId(d.source))?.x ?? 0;
+	    return x;
+	  })
+	  .attr('y1', d => nodeById.get(getId(d.source))?.y ?? 0)
+	  .attr('x2', d => nodeById.get(getId(d.target))?.x ?? 0)
+	  .attr('y2', d => nodeById.get(getId(d.target))?.y ?? 0);
+	
+	 edgeSelCurved
+	  .attr('d', d => {
+	    const s = nodeById.get(getId(d.source));
+	    const t = nodeById.get(getId(d.target));
+	    if (!s || !t) {
+	      console.warn(`❌ source or target can not be found:`, d.source, d.target);
+	      return '';
+	    }
+	    const mx = (s.x + t.x) / 2;
+	    const my = (s.y + t.y) / 2;
+	    const offset = 25;
+	    const dir = (d._parallel % 2) ? -1 : +1;
+	    const cx_ctrl = mx;
+	    const cy_ctrl = my + dir * offset;
+	    return `M${s.x},${s.y} Q${cx_ctrl},${cy_ctrl} ${t.x},${t.y}`;
+	  });
 
     // refesh group
     nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
@@ -898,7 +895,7 @@ d3.select('#filterBtn').on('click', () => {
   }
 });  
 
-// 计算内容包围盒（container <g> 的 bbox）并留白
+// Compute bounding box of container <g> and add padding
 function getContentBBox(padding = 20) {
   const svgNode = document.getElementById('networkViz');
   const container = svgNode.querySelector('g'); // <g> is created in drawNetwork 
@@ -914,7 +911,7 @@ function getContentBBox(padding = 20) {
   };
 }
 
-// 一键让全部节点入镜（自适应到当前视口）
+// One-click fit: bring all nodes into view (auto-scale to current viewport)
 function fitToView() {
   const info = getContentBBox(40);
   if (!info) return;
