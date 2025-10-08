@@ -9,12 +9,12 @@ and visualize community-level biological networks through an interactive D3.js f
 ## Features
 
 -  Upload and manage multiple omics data files:
-  - **Expression** (`expression.csv`)
-  - **Methylation** (`methylation.csv`)
-  - **SNV** (`snv.csv`)
-  - **CNV** (`cnv.csv`)
-  - **Stage / Clinical data** (`stage.csv`)
-  - **Edges**, **Nodes**, and **megList** network definitions
+  - Expression (`expression.csv`)
+  - Methylation (`methylation.csv`)
+  - SNV (`snv.csv`)
+  - CNV (`cnv.csv`)
+  - Stage / Clinical data (`stage.csv`)
+  - Edges, Node, and megList network definitions
 -  Automated R backend for community detection and JSON generation  
 -  Interactive D3.js front-end with filtering, color adjustment, and export  
 -  Support for both **directed** and **undirected** network modes  
