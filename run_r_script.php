@@ -118,7 +118,7 @@ $viewerUrl = $scheme.'://'.$host.$base.'/viewer.html?sid='.rawurlencode($sid);
 
 // ★ 无向：要么先用测试页 nodir_test.html，要么直接走 viewer.html?mode=undirected
 // 方案1（测试页）：
-$viewerUrlNoDir = $scheme.'://'.$host.$base.'/nodir_test.html?sid='.rawurlencode($sid);
+$viewerUrlNoDir = $scheme.'://'.$host.$base.'/nodir_viewer.html?sid='.rawurlencode($sid);
 
 // 方案2（直接用同一 viewer，靠 mode 切换）：
 // $viewerUrlNoDir = $scheme.'://'.$host.$base.'/viewer.html?sid='.rawurlencode($sid).'&mode=undirected';
