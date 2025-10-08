@@ -1,34 +1,14 @@
 <!DOCTYPE html>
 <html lang="en-US">
 <head>
-  <meta charset="UTF-8">
-  <title>Multi-omics Visulization</title>
-  <script src="https://d3js.org/d3.v6.min.js"></script>
-  <!--script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script-->
-
-  <!-- jsPDF（UMD 版） -->
-<!-- 让插件能找到 jsPDF 构造器（把 UMD 的 window.jspdf.jsPDF 映射到 window.jsPDF） -->
-<!-- svg2pdf 插件（用 cdnjs，不用 unpkg，常见环境更稳） -->
-
-  <!--script src="https://unpkg.com/svg2pdf.js@2.2.4/dist/svg2pdf.min.js"></script-->
-  <!-- jsPDF UMD 版 -->
-<!-- 让插件能找到构造器：把 window.jspdf.jsPDF 映射到 window.jsPDF -->
-
-<!-- d3 -->
-
-<script src="https://cdn.jsdelivr.net/npm/d3@6.7.0/dist/d3.min.js"></script>
-
-<!-- 1) jsPDF UMD（必须在 svg2pdf 之前） -->
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script>window.jsPDF = window.jspdf && window.jspdf.jsPDF;</script>
-
-<!-- 2) svg2pdf 插件（矢量导出首选；必须在 jsPDF 之后） -->
-<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.4/dist/svg2pdf.min.js"></script>
-
-<!-- 3) canvg 兜底（可选；只有 svg2pdf 不可用时才会被用到） -->
-<script src="https://cdn.jsdelivr.net/npm/canvg@3.0.10/lib/umd.min.js" defer></script>
-<!-- svg2pdf 插件（yWorks） -->
-
+	<meta charset="UTF-8">
+	<title>Multi-omics Visulization</title>
+	<script src="https://d3js.org/d3.v6.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/d3@6.7.0/dist/d3.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+	<script>window.jsPDF = window.jspdf && window.jspdf.jsPDF;</script>
+	<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.4/dist/svg2pdf.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/canvg@3.0.10/lib/umd.min.js" defer></script>
   <style>
     body {
       font-family: sans-serif;
@@ -39,17 +19,12 @@
       padding: 10px;
       background: #f7f7f7;
       border-bottom: 1px solid #ddd;
-      position: fixed; /* 让它固定在顶部 */
+      position: fixed; /* stick on the top  */
       top: 0; left: 0; right: 0;
-      /*height: 50px; */   /* 明确给一个高度 */
-      min-height: 100px;     /* 可选：保证足够高度包下两行控件 */
+      min-height: 100px;    
       z-index: 100;
     }
-   /* #controls label {
-      margin-right: 15px;
-      font-weight: bold;
-    }*/
-    /**********************************************/
+
     #controls label, #controls div {
       margin-right: 20px;
       display: inline-block;
@@ -67,7 +42,7 @@
     #networkContainer {
      position: absolute;
      top: 100px; left: 0; right: 0; bottom: 0;
-     overflow: auto;      /* 始终可以滚动 */
+     overflow: auto;      /* can always roll */
      background: white;
 
     
@@ -75,9 +50,8 @@
 
     #networkViz {
       display: block;
-      width: 700%;    /* 初始宽度放大 2 倍 */
-      height: 700%;   /* 初始高度放大 2 倍 */
-      /*margin-left: 300px;*/      /* 整个 SVG 向右推 300px */
+      width: 700%;    /*  2 times wider than initial width */
+      height: 700%;   /*  2 times wider than initial width */
       background: white;
     }
     #zoomControls {
@@ -114,16 +88,11 @@
 
      </label>
      <br> 
-     <!-- new update -->
-      
-      <!--div style="margin-top: 8px;"-->
-      
-      <!--new update end -->
      <div id="colorPickers" style="margin-top:8px;">
-       <span>Data1：</span>
-       <input type="color" id="expNeg" value="#0000FF" title="Exp Negative" />
-       <input type="color" id="expZero" value="#F7F7F7" title="Exp Zero" />
-       <input type="color" id="expPos" value="#FF0000" title="Exp Positive" />
+	  <span>Data1：</span>
+	  <input type="color" id="expNeg" value="#0000FF" title="Exp Negative" />
+	  <input type="color" id="expZero" value="#F7F7F7" title="Exp Zero" />
+	  <input type="color" id="expPos" value="#FF0000" title="Exp Positive" />
       <span style="display:inline-block; width:30px;"></span>  
       <span>Data2：</span>
       <input type="color" id="mtyNeg" value="#0000FF" title="Mty Negative" />
@@ -139,13 +108,7 @@
       <input type="color" id="cnvZero" value="#F7F7F7" title="CNV Zero" />
       <input type="color" id="cnvPos" value="#FF0000" title="CNV Positive" />
       <br>
-     <!--div class="legend-row" style="margin-top:8px;">
-       <span>Group：</span>
-       <span id="stageLegend" class="legend-inline"></span>
-     </div-->
-    </div>
-
-     
+    </div>  
     <br>
     <div style="display:inline-block; margin-top:0; vertical-align:middle;">
      <label>
@@ -173,18 +136,12 @@
         <input type="number" id="rangeMax" value="1" step="0.1" style="width:60px;">
      </label>
        <button id="filterBtn">Filter</button>
-       <!--button id="fitBtn">Fit</button-->
-       <!--button id="saveSVGBtn">Save SVG</button-->
-       <!--button id="savePDFBtn">Save PDF</button-->
-       <!--button id="saveJSONBtn">Save JSON</button-->
      </div>
      <br>
      <div class="legend-row" style="margin-top:8px;">
        <span>Group：</span>
        <span id="stageLegend" class="legend-inline"></span>
      </div>
-
-     <!--  -->
     <br>
     <div>
       <span>Edges：</span>
@@ -211,21 +168,19 @@
 
 
   </div>
+    
+  <!-- zoom control item displaying on the right -->
+	<div id="zoomControls">
+	  <button id="zoomIn">➕</button>
+	  <button id="zoomOut">➖</button>
+	</div>
+   
   
   
-  <!-- ✅ Zoom 控制按钮：显示在右上角 -->
-<div id="zoomControls">
-  <button id="zoomIn">➕</button>
-  <button id="zoomOut">➖</button>
-</div>
-  
-  
-  
-  
-  <div id="networkContainer">
+   <div id="networkContainer">
      <svg id="networkViz">
       <defs>
-      <!-- ← 新增：箭头 marker -->
+      <!-- arrows marker -->
          <marker id="arrow" viewBox="0 -5 10 10"
                 refX="6" refY="0"
                 markerUnits="strokeWidth"
@@ -237,13 +192,9 @@
      </defs>
         
     </svg>
-      
-    
-      
-  </div>
+        
+    </div>
   
-
-
   <script>
   (function(){
     
