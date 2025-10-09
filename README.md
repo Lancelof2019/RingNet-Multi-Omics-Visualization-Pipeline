@@ -5,8 +5,7 @@ This system allows users to upload CSV datasets, run integrated R scripts for da
 
 
 
-<img width="3700" height="2776" alt="image" src="https://github.com/user-attachments/assets/04f1bcc6-c22b-44f8-83f1-1c40c45ca6d3" />
-
+<img width="2157" height="683" alt="image" src="https://github.com/user-attachments/assets/83df3230-c806-48f7-bf0c-f3130ed69755" />
 
 ---
 
