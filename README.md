@@ -97,7 +97,8 @@ The interface supports various functionalities including filtering, color adjust
    └────────────────────────────────────────────────────────┘
 
 ```
-<img width="4615" height="1545" alt="image" src="https://github.com/user-attachments/assets/faf7c67e-b1f0-403a-a97c-bf9825c1f6ca" />
+<img width="4638" height="1167" alt="image" src="https://github.com/user-attachments/assets/f5489845-5803-44e8-9680-0da0cd3b6a45" />
+
 
 
 
