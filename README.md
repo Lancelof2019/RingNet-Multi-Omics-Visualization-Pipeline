@@ -92,6 +92,6 @@ The interface supports various functionalities including filtering, color adjust
    │ Visualizes with D3.js — filtering, coloring, exporting │
    └────────────────────────────────────────────────────────┘
 
-
-<img width="3700" height="2748" alt="image" src="https://github.com/user-attachments/assets/ba4503cc-a9bc-4e94-aaaf-f4f8960622ae" />
+```
+#Figures
 
