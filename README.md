@@ -1,8 +1,9 @@
 ## 🧬 Multi-Omics Visualization Pipeline
 
 A lightweight web-based pipeline for **multi-omics network analysis and visualization**.  
-This system allows users to upload CSV datasets, run integrated R scripts for data processing,  
-and visualize community-level biological networks through an interactive D3.js front-end.
+This system allows users to upload CSV datasets, run integrated R scripts for data processing, and visualize community-level biological networks through an interactive D3.js front-end.
+
+<img width="1400" height="1248" alt="image" src="https://github.com/user-attachments/assets/f5d0bdf6-a837-4d85-90fb-504854eb176f" />
 
 ---
 
@@ -93,6 +94,6 @@ The interface supports various functionalities including filtering, color adjust
    └────────────────────────────────────────────────────────┘
 
 ```
+<img width="4615" height="1398" alt="image" src="https://github.com/user-attachments/assets/d9288134-6e5b-4519-83eb-9ee0b2427c84" />
 
-<img width="3700" height="2748" alt="image" src="https://github.com/user-attachments/assets/8a0b90e2-a4b1-46bc-a7ef-e216f619503b" />
 
