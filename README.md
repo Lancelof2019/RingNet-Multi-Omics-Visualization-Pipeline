@@ -3,9 +3,7 @@
 A lightweight web-based pipeline for **multi-omics network analysis and visualization**.  
 This system allows users to upload CSV datasets, run integrated R scripts for data processing, and visualize community-level biological networks through an interactive D3.js front-end.
 
-<img width="2199" height="727" alt="image" src="https://github.com/user-attachments/assets/bbafa8b2-a048-4a24-bcc5-2d113cfe7c86" />
-
-
+<img width="2199" height="727" alt="image" src="https://github.com/user-attachments/assets/650bb0a2-b8dd-44c0-adbd-d290b2a6fc12" />
 
 
 ---
