@@ -91,6 +91,7 @@ melanet_spg <- structure(list(
 ), class = "communities")
 
 ##---------- 2) Read omics matrices ----------
+## ---------- 2) Read omics matrices ----------
 read_or_empty <- function(path) {
   if (is.null(path) || path %in% c("", "NA", "NULL", "null", "-") || !file.exists(path)) {
     data.frame()
@@ -118,17 +119,32 @@ read_stage_vector <- function(path) {
   idx
 }
 
-
-
+## ---------- Read input omics files ----------
 e_raw <- read_or_empty(args["expr"])
 m_raw <- read_or_empty(args["meth"])
 snv_m <- read_or_empty(args["snv"])
 cnv_m <- read_or_empty(args["cnv"])
-stage_v <- read_stage_vector(args["stage"]) 
-# At least one omics file must be non-empty
-#if (ncol(e_raw)==0 && ncol(m_raw)==0 && ncol(snv_m)==0 && ncol(cnv_m)==0) {
-#  stop("At least one of expr/meth/snv/cnv must be provided.")
-#}
+stage_v <- read_stage_vector(args["stage"])
+
+## ---------- Auto-detect and correct orientation ----------
+auto_fix_orientation <- function(mat, label="matrix") {
+  if (nrow(mat) == 0 || ncol(mat) == 0) return(mat)
+  # 通常基因数量 >> 样本数量，如果行 < 列，则说明行为基因，需要转置
+  if (nrow(mat) < ncol(mat)) {
+    message(sprintf("Detected orientation: rows = genes, columns = samples in %s → transposing", label))
+    mat <- as.data.frame(t(mat))
+  } else {
+    message(sprintf("Detected orientation: rows = samples, columns = genes in %s", label))
+  }
+  return(mat)
+}
+
+if (ncol(e_raw) > 0) e_raw <- auto_fix_orientation(e_raw, "expr")
+if (ncol(m_raw) > 0) m_raw <- auto_fix_orientation(m_raw, "meth")
+if (ncol(snv_m) > 0) snv_m <- auto_fix_orientation(snv_m, "snv")
+if (ncol(cnv_m) > 0) cnv_m <- auto_fix_orientation(cnv_m, "cnv")
+
+## ---------- Validate that at least one omics file exists ----------
 if (ncol(e_raw)==0 && ncol(m_raw)==0 && ncol(snv_m)==0 && ncol(cnv_m)==0 && is.null(stage_v)) {
   stop("At least one of expr/meth/snv/cnv/stage must be provided.")
 }
