@@ -103,7 +103,10 @@ The interface supports various functionalities including filtering, color adjust
 
 
 
-##Example:
+
+
+
+## Example:
 <img width="4102" height="1466" alt="image" src="https://github.com/user-attachments/assets/1da1c222-d5b3-4605-b4c9-07a794bbb5ba" />
 
 
