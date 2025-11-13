@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi-omics Visulization</title>
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+  <!--script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script-->
+
+  <!-- jsPDF（UMD 版） -->
+<!-- 让插件能找到 jsPDF 构造器（把 UMD 的 window.jspdf.jsPDF 映射到 window.jsPDF） -->
+<!-- svg2pdf 插件（用 cdnjs，不用 unpkg，常见环境更稳） -->
+
+  <!--script src="https://unpkg.com/svg2pdf.js@2.2.4/dist/svg2pdf.min.js"></script-->
+  <!-- jsPDF UMD 版 -->
+<!-- 让插件能找到构造器：把 window.jspdf.jsPDF 映射到 window.jsPDF -->
+
+<!-- d3 -->
+
+<script src="https://cdn.jsdelivr.net/npm/d3@6.7.0/dist/d3.min.js"></script>
+
+<!-- 1) jsPDF UMD（必须在 svg2pdf 之前） -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script>window.jsPDF = window.jspdf && window.jspdf.jsPDF;</script>
+
+<!-- 2) svg2pdf 插件（矢量导出首选；必须在 jsPDF 之后） -->
+<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.4/dist/svg2pdf.min.js"></script>
+
+<!-- 3) canvg 兜底（可选；只有 svg2pdf 不可用时才会被用到） -->
+<script src="https://cdn.jsdelivr.net/npm/canvg@3.0.10/lib/umd.min.js" defer></script>
+<!-- svg2pdf 插件（yWorks） -->
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #controls {
+      padding: 10px;
+      background: #f7f7f7;
+      border-bottom: 1px solid #ddd;
+      position: fixed; /* 让它固定在顶部 */
+      top: 0; left: 0; right: 0;
+      /*height: 50px; */   /* 明确给一个高度 */
+      min-height: 100px;     /* 可选：保证足够高度包下两行控件 */
+      z-index: 100;
+    }
+   /* #controls label {
+      margin-right: 15px;
+      font-weight: bold;
+    }*/
+    /**********************************************/
+    #controls label, #controls div {
+      margin-right: 20px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    #controls input[type="color"] {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    /********************************************/
+    #networkContainer {
+     position: absolute;
+     top: 100px; left: 0; right: 0; bottom: 0;
+     overflow: auto;      /* 始终可以滚动 */
+     background: white;
+
+    
+    }
+
+    #networkViz {
+      display: block;
+      width: 700%;    /* 初始宽度放大 2 倍 */
+      height: 700%;   /* 初始高度放大 2 倍 */
+      /*margin-left: 300px;*/      /* 整个 SVG 向右推 300px */
+      background: white;
+    }
+    #zoomControls {
+      position: fixed;
+      top: 120px;
+      right: 20px;
+      z-index: 200;
+    }
+
+    #zoomControls button {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 18px;
+      width: 40px;
+      height: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label>
+      Community：
+      <select id="commSelect"></select>
+    </label>
+    <label>
+      Degree Range：
+      <input type="number" id="degMin" value="0" min="0" max="500" style="width:60px;">
+      –
+      <input type="number" id="degMax" value="500" min="0" max="500" style="width:60px;">
+       <button id="fitBtn">Fit</button>
+       <button id="saveSVGBtn">Save SVG</button>
+       <button id="savePDFBtn">Save PDF</button>
+       <button id="saveJSONBtn">Save JSON</button>
+
+     </label>
+     <br> 
+     <!-- new update -->
+      
+      <!--div style="margin-top: 8px;"-->
+      
+      <!--new update end -->
+     <div id="colorPickers" style="margin-top:8px;">
+       <span>Data1：</span>
+       <input type="color" id="expNeg" value="#0000FF" title="Exp Negative" />
+       <input type="color" id="expZero" value="#F7F7F7" title="Exp Zero" />
+       <input type="color" id="expPos" value="#FF0000" title="Exp Positive" />
+      <span style="display:inline-block; width:30px;"></span>  
+      <span>Data2：</span>
+      <input type="color" id="mtyNeg" value="#0000FF" title="Mty Negative" />
+      <input type="color" id="mtyZero" value="#F7F7F7" title="Mty Zero" />
+      <input type="color" id="mtyPos" value="#FF0000" title="Mty Positive" />
+      <span style="display:inline-block; width:30px;"></span> 
+      <span>Data3：</span>
+      <input type="color" id="snv0" value="#EEEEEE" title="No Variation" />
+      <input type="color" id="snv1" value="#00AA00" title="Yes Variation" />
+      <span style="display:inline-block; width:30px;"></span> 
+      <span>Data4：</span>
+      <input type="color" id="cnvNeg" value="#0000FF" title="CNV Negative" />
+      <input type="color" id="cnvZero" value="#F7F7F7" title="CNV Zero" />
+      <input type="color" id="cnvPos" value="#FF0000" title="CNV Positive" />
+      <br>
+     <!--div class="legend-row" style="margin-top:8px;">
+       <span>Group：</span>
+       <span id="stageLegend" class="legend-inline"></span>
+     </div-->
+    </div>
+
+     
+    <br>
+    <div style="display:inline-block; margin-top:0; vertical-align:middle;">
+     <label>
+       Data:
+       <select id="omicsType">
+        <option value="exp">Data1</option>
+        <option value="mty">Data2</option>
+        <option value="snv">Data3</option>
+        <option value="cnv">Data4</option>
+       </select>
+      </label>
+     <label>
+       Data Norm:
+      <select id="dataType">
+        <option value="raw">Raw</option>
+        <option value="norm">Min-Max norm</option>
+        <option value="zscore">Z-score</option>
+       </select>
+      </label>
+      <label>
+
+     <label>
+       Value Range:
+        <input type="number" id="rangeMin" value="-1" step="0.1" style="width:60px;"> -
+        <input type="number" id="rangeMax" value="1" step="0.1" style="width:60px;">
+     </label>
+       <button id="filterBtn">Filter</button>
+       <!--button id="fitBtn">Fit</button-->
+       <!--button id="saveSVGBtn">Save SVG</button-->
+       <!--button id="savePDFBtn">Save PDF</button-->
+       <!--button id="saveJSONBtn">Save JSON</button-->
+     </div>
+     <br>
+     <div class="legend-row" style="margin-top:8px;">
+       <span>Group：</span>
+       <span id="stageLegend" class="legend-inline"></span>
+     </div>
+
+     <!--  -->
+    <br>
+    <div>
+      <span>Edges：</span>
+      Negative: <input type="color" id="edgeNeg" value="#00FF00" title="Negative weight" />
+      Zero: <input type="color" id="edgeZero" value="#FFFFFF" title="Zero weight" />
+      Postive: <input type="color" id="edgePos" value="#FF00FF" title="Postive Weight" />
+     </div>
+  <br>
+  <div style="margin-top:8px;">
+    <span>Edge Data Norm:</span>
+    <select id="edgeMetric">
+     <option value="w_raw">Raw</option>
+     <option value="w_norm">Min-Max Norm</option>
+     <option value="w_z">Z-score</option>
+    </select>
+    <label style="margin-left:12px;">
+      Range:
+     <input type="number" id="eRangeMin" value="-1" step="0.1" style="width:80px;">
+      –
+     <input type="number" id="eRangeMax" value="1"  step="0.1" style="width:80px;">
+    </label>
+    <button id="edgeFilterBtn">Filter edges</button>
+  </div>
+
+
+  </div>
+  
+  
+  <!-- ✅ Zoom 控制按钮：显示在右上角 -->
+<div id="zoomControls">
+  <button id="zoomIn">➕</button>
+  <button id="zoomOut">➖</button>
+</div>
+  
+  
+  
+  
+  <div id="networkContainer">
+     <svg id="networkViz">
+      <defs>
+      <!-- ← 新增：箭头 marker -->
+         <marker id="arrow" viewBox="0 -5 10 10"
+                refX="6" refY="0"
+                markerUnits="strokeWidth"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto">
+          <path d="M0,-5L10,0L0,5" fill="context-stroke"/>
+        </marker>
+     </defs>
+        
+    </svg>
+      
+    
+      
+  </div>
+  
+
+
+  <script>
+  (function(){
+    
+    let currentData = null;
+    let lastLayout = []; 
+    const viewWidth  = window.innerWidth;
+    const viewHeight = window.innerHeight - 100;  // 留出上方 controls
+
+    // 这里先把 SVG 设成基准大小
+    const svg = d3.select('#networkViz')
+      .attr('width',  viewWidth)
+      .attr('height', viewHeight);
+    
+//
+
+    let colorConfig = {};
+
+    /**
+     * 从页面控件读取配色，生成 D3 颜色 scale
+     */
+    function getColorScales() {
+      // 表达：负-零-正
+      colorConfig.exp = d3.scaleLinear()
+        .domain([-1, 0, 1])
+        .range([
+          d3.select('#expNeg').property('value'),
+          d3.select('#expZero').property('value'),
+          d3.select('#expPos').property('value')
+        ]);
+
+      // 甲基化
+      colorConfig.mty = d3.scaleLinear()
+        .domain([-1, 0, 1])
+        .range([
+          d3.select('#mtyNeg').property('value'),
+          d3.select('#mtyZero').property('value'),
+          d3.select('#mtyPos').property('value')
+        ]);
+
+      // SNV 二值
+      colorConfig.snv = d3.scaleOrdinal()
+        .domain([0,1])
+        .range([
+          d3.select('#snv0').property('value'),
+          d3.select('#snv1').property('value')
+        ]);
+
+      // CNV
+      colorConfig.cnv = d3.scaleLinear()
+        .domain([-1, 0, 1])
+        .range([
+          d3.select('#cnvNeg').property('value'),
+          d3.select('#cnvZero').property('value'),
+          d3.select('#cnvPos').property('value')
+        ]);
+
+      // 边
+      colorConfig.edge = {
+        neg:  d3.select('#edgeNeg').property('value'),
+        zero: d3.select('#edgeZero').property('value'),
+        pos:  d3.select('#edgePos').property('value')
+      };
+    }
+     /* const STAGE_COLOR_MAP = {
+      0: '#1f77b4', // 蓝
+      1: '#d62728', // 红
+      2: '#2ca02c', // 绿
+      3: '#ffbf00', // 黄
+      4: '#9467bd', // 紫
+      5: '#ff7f0e'  // 橙
+    };
+      const STAGE_GREY = '#CCCCCC';
+      function getStageColor(idx){
+        if (idx == null || isNaN(idx)) return 'transparent';
+        return STAGE_COLOR_MAP[idx] ?? STAGE_GREY;
+      }
+  */
+
+    const DEFAULT_STAGE_COLORS = [
+      '#1f77b4', // 0
+      '#d62728', // 1
+      '#2ca02c', // 2
+      '#ffbf00', // 3
+      '#9467bd', // 4
+      '#ff7f0e'  // 5
+    ];
+//    const STAGE_GREY = '#CCCCCC';
+  const STAGE_IDS = [0,1,2,3,4,5];
+  const stageColorMap = new Map(STAGE_IDS.map(i => [i, DEFAULT_STAGE_COLORS[i]]));
+  /*function readStageColor(i) {
+    const el = document.getElementById(`stageColor-${i}`);
+    if (el && el.value) return el.value;
+    return DEFAULT_STAGE_COLORS[i % DEFAULT_STAGE_COLORS.length];
+  } 
+
+  function getStageColor(v){
+    // v 可能是字符串/浮点/NaN/越界
+    const n = Number(v);
+    if (!Number.isFinite(n)) return 'transparent';
+    let i = Math.floor(n);
+    if (i < 0) i = 0;
+     // 超出 0–5 的范围，回退到取模映射，避免灰色
+    i = i % DEFAULT_STAGE_COLORS.length;
+    return readStageColor(i) || DEFAULT_STAGE_COLORS[i] || STAGE_GREY;
+   }
+  */
+
+   /*  function renderStageLegend(presentSet) {
+   // presentSet: Set(出现过的整数 index)
+      const container = d3.select('#stageLegend');
+      if (container.empty()) return;
+
+      container.selectAll('*').remove();
+      const wrap = container.append('div').style('display','inline-block');
+
+      for (let i = 0; i <= 5; i++) {
+         const has = presentSet.has(i);
+         const row = wrap.append('span').style('margin-right','12px').style('display','inline-flex').style('align-items','center');
+         row.append('span')
+          .style('display','inline-block')
+          .style('width','14px').style('height','14px')
+          .style('margin-right','4px')
+          .style('background', has ? STAGE_COLOR_MAP[i] : STAGE_GREY)
+          .style('border','1px solid #999');
+         row.append('span').text(`group ${i}`);
+      }
+    }*/
+/* function renderStageLegend(presentSet) {
+     const container = d3.select('#stageLegend');
+     if (container.empty()) return;
+
+  container.selectAll('*').remove();
+
+  const wrap = container.append('div')
+    .style('display','inline-flex')
+    .style('gap','12px')
+    .style('align-items','center')
+    .style('flex-wrap','wrap');
+
+  for (let i = 0; i <= 5; i++) {
+    const has = presentSet.has(i);
+
+    const item = wrap.append('label')
+      .style('display','inline-flex')
+      .style('align-items','center')
+      .style('gap','6px')
+      .style('opacity', has ? 1 : 0.5);
+
+    // group i 文本
+    item.append('span').text(`group ${i}`);
+
+    // ✅ 可选颜色
+    const colorInput = item.append('input')
+      .attr('type','color')
+      .attr('id', `stageColor-${i}`)
+      .attr('value', readStageColor(i));
+
+    // 小色块（和 input 同步）
+    const swatch = item.append('span')
+      .style('display','inline-block')
+      .style('width','14px')
+      .style('height','14px')
+      .style('border','1px solid #999')
+      .style('background', readStageColor(i));
+
+    // 改色时刷新
+    colorInput.on('input', function() {
+      swatch.style('background', this.value);
+      if (currentData) drawNetwork(currentData);
+    });
+  }
+}*/
+
+function setStageColor(i, hex) {
+  if (!Number.isInteger(i) || i < 0) return;
+  if (/^#[0-9A-Fa-f]{6}$/.test(hex)) stageColorMap.set(i % STAGE_IDS.length, hex);
+}
+function getStageColorByIndex(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 'transparent';
+  const i = Math.floor(n);
+  if (i < 0) return 'transparent'; // 若你的数据用 -1 表示缺失，这里保持透明
+  const k = i % STAGE_IDS.length;
+  return stageColorMap.get(k) || DEFAULT_STAGE_COLORS[k];
+}
+
+// 渲染可编辑的“Group 颜色”图例（带小色块预览）
+/*function renderStageLegend() {
+  const container = d3.select('#stageLegend');
+  if (container.empty()) return;
+
+  container.selectAll('*').remove();
+
+  const wrap = container.append('div')
+    .style('display','inline-flex')
+    .style('gap','12px')
+    .style('align-items','center')
+    .style('flex-wrap','wrap');
+
+  STAGE_IDS.forEach(i => {
+    const item = wrap.append('label')
+      .style('display','inline-flex')
+      .style('align-items','center')
+      .style('gap','6px');
+
+    item.append('span').text(`group ${i}`);
+
+    // 原生 color input：不要再设置 background:none，避免看起来是黑块
+    const inp = item.append('input')
+      .attr('type','color')
+      .attr('id', `stageColor-${i}`)
+      .attr('value', stageColorMap.get(i))
+      .style('width','24px')
+      .style('height','24px')
+      .style('padding','0')
+      .style('border','1px solid #ccc');
+
+    // 小色块预览（可选）
+    const swatch = item.append('span')
+      .style('display','inline-block')
+      .style('width','14px')
+      .style('height','14px')
+      .style('border','1px solid #999')
+      .style('background', stageColorMap.get(i));
+
+    // 改色：更新集中状态 → 刷新小色块 → 立刻重绘
+    inp.on('input', function() {
+      setStageColor(i, this.value);
+      swatch.style('background', this.value);
+      if (currentData) drawNetwork(currentData);
+    });
+    inp.on('change', function() {
+      setStageColor(i, this.value);
+      swatch.style('background', this.value);
+      if (currentData) drawNetwork(currentData);
+    });
+  });
+}
+*/
+ /*function renderStageLegend() {
+  const container = d3.select('#stageLegend');
+  if (container.empty()) return;
+
+  container.selectAll('*').remove();
+
+  const wrap = container.append('div')
+    .style('display','inline-flex')
+    .style('gap','12px')
+    .style('align-items','center')
+    .style('flex-wrap','wrap');
+
+  STAGE_IDS.forEach(i => {
+    const item = wrap.append('label')
+      .style('display','inline-flex')
+      .style('align-items','center')
+      .style('gap','6px');
+
+    item.append('span').text(`group ${i}`);
+
+    item.append('input')
+      .attr('type','color')
+      .attr('id', `stageColor-${i}`)
+      .attr('value', stageColorMap.get(i))
+      .style('width','24px')
+      .style('height','24px')
+      .style('padding','0')
+      .style('border','1px solid #ccc')
+      .on('input', function() {
+        setStageColor(i, this.value);
+        if (currentData) drawNetwork(currentData);
+      })
+      .on('change', function() {
+        setStageColor(i, this.value);
+        if (currentData) drawNetwork(currentData);
+      });
+  });
+}*/
+
+/*  function renderStageLegend() {
+  const container = d3.select('#stageLegend');
+  if (container.empty()) return;
+
+  container.selectAll('*').remove();
+
+  const wrap = container.append('div')
+    .style('display','inline-flex')
+    .style('gap','12px')
+    .style('align-items','center')
+    .style('flex-wrap','wrap');
+
+  // 仅用于视觉提示：哪些 group 在当前数据中出现过（不影响可点性）
+  const present = new Set();
+  if (currentData && Array.isArray(currentData.nodes)) {
+    currentData.nodes.forEach(n => {
+      const arr = n && Array.isArray(n.stage_idx) ? n.stage_idx : [];
+      arr.forEach(v => {
+        const x = Math.floor(+v);
+        if (Number.isFinite(x) && x >= 0) present.add(x % STAGE_IDS.length);
+      });
+    });
+  }
+
+  STAGE_IDS.forEach(i => {
+    const item = wrap.append('label')
+      .style('display','inline-flex')
+      .style('align-items','center')
+      .style('gap','6px');
+
+    // 文本可做一点点淡化提示：没出现过的组 0.8，不是禁用
+    item.append('span')
+      .text(`group ${i}`)
+      .style('opacity', present.has(i) ? 1 : 0.8);
+
+    const color = stageColorMap.get(i) || DEFAULT_STAGE_COLORS[i];
+
+    // ✅ 关键：无论有没有数据，都强制可点、强制有有效颜色值
+    const inp = item.append('input')
+      .attr('type','color')
+      .attr('id', `stageColor-${i}`)
+      .attr('title', `Set color of group ${i}`)
+      .attr('value', color)           // 初始属性值
+      .property('value', color)       // 运行时值（部分浏览器否则会灰）
+      .attr('disabled', null)         // 确保没有 disabled 属性
+      .property('disabled', false)    // 强制启用
+      .style('opacity', 1)            // 不要半透明
+      .style('pointer-events', 'auto')// 一定可点
+      .style('width','24px')
+      .style('height','24px')
+      .style('padding','0')
+      .style('border','1px solid #ccc')
+      .on('input', function () {
+        setStageColor(i, this.value);
+        if (currentData) drawNetwork(currentData);
+      })
+      .on('change', function () {
+        setStageColor(i, this.value);
+        if (currentData) drawNetwork(currentData);
+      });
+
+    // 再保险：父 label 也不应被禁用/截获事件
+    item.style('pointer-events','auto').style('opacity', present.has(i) ? 1 : 0.8);
+  });
+
+  // 终极保险：把任何被外部样式影响的控件统统恢复
+  d3.selectAll('#stageLegend input[type="color"]')
+    .attr('disabled', null)
+    .property('disabled', false)
+    .style('pointer-events','auto')
+    .style('opacity', 1);
+}
+*/
+function renderStageLegend() {
+  const container = d3.select('#stageLegend');
+  if (container.empty()) return;
+
+  container.selectAll('*').remove();
+
+  const wrap = container.append('div')
+    .style('display','inline-flex')
+    .style('gap','14px')
+    .style('align-items','center')
+    .style('flex-wrap','wrap');
+
+  // 统计当前 community 中实际出现过的 group
+  const present = new Set();
+  if (currentData?.nodes?.length) {
+    currentData.nodes.forEach(n => {
+      const arr = Array.isArray(n.stage_idx) ? n.stage_idx : [];
+      arr.forEach(v => {
+        const x = Math.floor(+v);
+        if (Number.isFinite(x) && x >= 0) present.add(x % STAGE_IDS.length);
+      });
+    });
+  }
+
+  STAGE_IDS.forEach(i => {
+    const hasData = present.has(i);
+    const color = stageColorMap.get(i) || DEFAULT_STAGE_COLORS[i];
+
+    const row = wrap.append('label')
+      .style('display','inline-flex')
+      .style('align-items','center')
+      .style('gap','8px');
+
+    row.append('span')
+      .text(`group ${i}`)
+      .style('opacity', hasData ? 1 : 0.45);
+
+    row.append('input')
+      .attr('type','color')
+      .attr('id', `stageColor-${i}`)
+      .attr('value', color)
+      .property('value', color)
+      .property('disabled', !hasData)               // 没数据 → 禁用
+      .style('width','28px')                        // 大色块
+      .style('height','28px')
+      .style('padding','0')
+      .style('border','1px solid #ccc')
+      .style('cursor', hasData ? 'pointer' : 'not-allowed')
+      // 视觉弱化（仅样式，真正禁用靠 disabled）
+      .style('filter', hasData ? null : 'grayscale(100%) brightness(0.85)')
+      .style('opacity', hasData ? 1 : 0.7)
+      .on('input', function () {
+        if (!hasData) return;
+        setStageColor(i, this.value);
+        if (currentData) drawNetwork(currentData);
+      })
+      .on('change', function () {
+        if (!hasData) return;
+        setStageColor(i, this.value);
+        if (currentData) drawNetwork(currentData);
+      });
+  });
+}
+
+
+//
+    
+
+    // 1. 加载社区列表并填充下拉框
+    //fetch('/communities')
+  // fetch('uploads/community_map_top100.json')
+    //  .then(res => {
+      //  if (!res.ok) throw new Error('Network response was not ok');
+       // return res.json();
+     // })
+     // .then(ids => {
+      //  const sel = d3.select('#commSelect');
+      //  ids.forEach(id => {
+        //  sel.append('option')
+          //   .attr('value', id)
+           //  .text(`community ${id}`);
+       // });
+        // 绑定 change 事件
+      //  sel.on('change', renderCommunity);
+       // d3.selectAll('#degMin, #degMax')
+        //  .on('change', renderCommunity);
+       // d3.selectAll('#colorPickers input[type="color"]')
+       //   .on('input', renderCommunity);
+        // 首次渲染
+       // renderCommunity();
+     // })
+     // .catch(err => console.error('comminuty loading error：', err));
+
+  
+
+/* ========= BEGIN-替换 ①：一次性加载 JSON ========= */
+  //fetch('uploads/community_map_top100.json')
+
+  const sid = new URLSearchParams(location.search).get('sid') || '';
+  const jsonPath = sid ? `uploads/${sid}/community_map_top100.json`: 'uploads/community_map_top100.json';
+  fetch(jsonPath)
+   .then(r => r.json())
+   .then(json => {
+
+    /* ① Object → Array（关键一步） */
+    const dataArr = Array.isArray(json) ? json : Object.values(json);
+
+    /* ② 存到全局，后面 renderCommunity 也用这个数组 */
+    window.allCommunities = dataArr;
+
+    const sel = d3.select('#commSelect');
+
+    /* ③ 用 dataArr 填下拉框 */
+    dataArr.forEach(item => {
+      sel.append('option')
+         .attr('value', item.comm)
+         .text(`community ${item.comm}`);
+    });
+
+    /* ④ 默认选中第一个社区，同样是 dataArr[0] */
+    sel.property('value', dataArr[0].comm);
+    getColorScales();
+    sel.on('change', renderCommunity);
+    renderCommunity();                // 首次渲染
+    /* === 在这里加监听：颜色变→立刻重绘 === */
+   // d3.selectAll('#colorPickers input[type="color"]').on('input', () => {
+    //  getColorScales();
+     // if (currentData) drawNetwork(currentData);
+   // });
+
+    /* （可选）度数范围改动也触发重绘 */
+    d3.selectAll('#degMin, #degMax').on('change', renderCommunity); 
+  
+    // 颜色选择器改动 → 立刻重绘（你之前已加可以保留）
+   d3.selectAll('#colorPickers input[type="color"]').on('input', () => {
+    getColorScales();
+    if (currentData) drawNetwork(currentData);
+   });
+    d3.selectAll('#edgeNeg, #edgeZero, #edgePos').on('input', () => {
+      getColorScales();
+      if (currentData) drawNetwork(currentData);
+   });
+
+
+     // ★ 边的度量切换（Raw/Norm/Z）→ 重置范围 + 重绘
+    d3.select('#edgeMetric').on('change', () => {
+      if (!currentData) return;
+      setEdgeRangeInputs(currentData.edges);  // 依据新度量重置 eRangeMin/eRangeMax
+      drawNetwork(currentData);
+    });
+
+    // ★ 边的范围输入改动 → 重绘
+    d3.selectAll('#eRangeMin, #eRangeMax').on('change', () => {
+      if (currentData) drawNetwork(currentData);
+    });
+
+    // ★ “Filter edges” 按钮 → 重绘
+    d3.select('#edgeFilterBtn').on('click', () => {
+      if (currentData) drawNetwork(currentData);
+    });
+    const fitBtn = document.getElementById('fitBtn');
+    if (fitBtn) fitBtn.onclick = () => fitToView();
+
+    const saveSVGBtn = document.getElementById('saveSVGBtn');
+    if (saveSVGBtn) saveSVGBtn.onclick = () => saveSVG();
+
+    const savePDFBtn = document.getElementById('savePDFBtn');
+    if (savePDFBtn) savePDFBtn.onclick = () => savePDF();
+
+	     })
+  .catch(err => console.error('JSON 加载失败:', err));
+/* ========= END-替换 ① ========= */
+
+ /* function setEdgeRangeInputs(edges) {
+     const metric = d3.select('#edgeMetric').property('value'); // w_raw / w_norm / w_z
+     const vals = edges
+       .map(e => +((e && e[metric]) ?? e?.weight))  // 兼容旧weight
+       .filter(v => Number.isFinite(v));
+  const emin = d3.min(vals), emax = d3.max(vals);
+  if (emin != null && emax != null) {
+    d3.select('#eRangeMin').property('value', emin.toFixed(3));
+    d3.select('#eRangeMax').property('value', emax.toFixed(3));
+  }
+ }
+*/
+/*  function setEdgeRangeInputs(edges) {
+     const metric = d3.select('#edgeMetric').property('value'); // w_raw / w_norm / w_z
+     const vals = edges
+       .map(e => +((e && e[metric]) ?? e?.weight))  // 兼容旧weight
+       .filter(v => Number.isFinite(v));
+  const emin = d3.min(vals), emax = d3.max(vals);
+  if (emin != null && emax != null) {
+    d3.select('#eRangeMin').property('value', emin.toFixed(3));
+    d3.select('#eRangeMax').property('value', emax.toFixed(3));
+  }
+ }
+*/
+
+
+function setEdgeRangeInputs(edges) {
+  const metric = d3.select('#edgeMetric').property('value');
+  const toNum = v => {
+    if (Array.isArray(v)) v = v[0];
+    const n = +v;
+    return Number.isFinite(n) ? n : NaN;
+  };
+  const vals = edges
+    .map(e => toNum((e && e[metric]) ?? e?.weight))
+    .filter(Number.isFinite);
+
+  if (!vals.length) return;
+
+  let emin = d3.min(vals), emax = d3.max(vals);
+  if (emin === emax) {
+    const pad = Math.max(1e-6, Math.abs(emin) * 0.01 || 0.01);
+    emin -= pad; emax += pad;
+  }
+  d3.select('#eRangeMin').property('value', emin.toFixed(3));
+  d3.select('#eRangeMax').property('value', emax.toFixed(3));
+}			    
+
+
+    // 2. 请求并渲染指定社区
+  
+   function renderCommunity() {
+    const id   = d3.select('#commSelect').property('value');
+    const dmin = +d3.select('#degMin').property('value');
+    const dmax = +d3.select('#degMax').property('value');
+
+    const raw = window.allCommunities               // ③ 按 id 查找
+                .find(d => String(d.comm) === id);
+    if (!raw) { console.warn('社区不存在:', id); return; }
+
+   // 按 degree 过滤
+    const data = {
+      nodes: raw.nodes.filter(n => n.degree >= dmin && n.degree <= dmax),
+      edges: raw.edges.filter(e =>
+        raw.nodes.some(n => n.id === e.source && n.degree >= dmin && n.degree <= dmax) &&
+        raw.nodes.some(n => n.id === e.target && n.degree >= dmin && n.degree <= dmax))
+   };
+
+    currentData = data;
+    updateValueRangeInputs(data.nodes);
+    //const present = new Set();
+    //data.nodes.forEach(n => {
+    // const arr = n.stage_idx;
+    // if (Array.isArray(arr)) {
+    //     arr.forEach(v => { if (Number.isInteger(v)) present.add(v); });
+    //  }
+    //});
+    //renderStageLegend(present);
+    renderStageLegend();
+    ////////
+   setEdgeRangeInputs(data.edges);		     
+    ////////
+
+		     
+    drawNetwork(data);
+
+     
+}
+
+
+
+   // function renderCommunity() {
+   //  const id   = d3.select('#commSelect').property('value');
+   //  const dmin = +d3.select('#degMin').property('value');
+      // 只有在用户真的修改了 degMax 时才带上它
+  //   let url = `/community?id=${id}&deg_min=${dmin}`;
+ //    const dmaxInput = d3.select('#degMax').property('value');
+ //    if (/* 检查用户是否主动改过 */) {
+  //      url += `&deg_max=${+dmaxInput}`;
+  //    }
+  //   fetch(url)
+  //     .then(res => res.json())
+  //     .then(drawNetwork);
+ //  }
+//
+    // 3. 绘制网络并自动缩放
+function getValueRange(nodes, omicsType, dataType) {
+  const key = `${omicsType}_${dataType === 'zscore' ? 'z' : (dataType === 'norm' ? 'norm' : 'vals')}`;
+  let allVals = [];
+  nodes.forEach(n => {
+    const vals = n[key];
+    if (Array.isArray(vals)) {
+      allVals = allVals.concat(vals.filter(v => typeof v === 'number' && !isNaN(v)));
+    }
+  });
+  const min = d3.min(allVals);
+  const max = d3.max(allVals);
+  return [min, 0, max];
+}
+
+function updateValueRangeInputs(nodes) {
+  const dataType  = d3.select('#dataType').property('value');
+  const omicsType = d3.select('#omicsType').property('value');
+  const [vmin, vzero, vmax] = getValueRange(nodes, omicsType, dataType);
+  
+  if (omicsType === 'snv') {
+    // SNV 是二值（0/1），直接固定范围
+    d3.select('#rangeMin').property('value', 0);
+    d3.select('#rangeMax').property('value', 1);
+    // 不重写 colorConfig.snv（保持 ordinal 二值配色）
+    return;
+  }
+  
+  d3.select('#rangeMin').property('value', vmin.toFixed(2));
+  d3.select('#rangeMax').property('value', vmax.toFixed(2));
+  //if (omicsType !== 'snv') {
+  const colorScale = d3.scaleLinear()
+      .domain([vmin, vzero, vmax])
+      .range([
+        d3.select(`#${omicsType}Neg`).property('value'),
+        d3.select(`#${omicsType}Zero`).property('value'),
+        d3.select(`#${omicsType}Pos`).property('value')
+      ]);
+    colorConfig[omicsType] = colorScale;
+ // }
+} 
+    
+// ✅ 新增：监听选择器变化自动更新
+['#dataType', '#omicsType'].forEach(sel => {
+  d3.select(sel).on('change', () => {
+    if (typeof currentData !== 'undefined' && currentData) {
+      updateValueRangeInputs(currentData.nodes);
+    }
+  });
+});    
+  
+  
+function drawNetwork(data) {
+  // 1. 筛选和高亮逻辑无变化
+
+  if (!window.globalInteractColorMap) {
+  window.globalInteractColorMap = new Map();
+
+  // ✅ 你的颜色池：彼此高区分度、无灰白、纯色彩
+  window.globalColorList = [
+    '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
+    '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',
+    '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000',
+    '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080',
+    '#a52a2a', '#8a2be2', '#deb887', '#5f9ea0', '#7fff00',
+    '#d2691e', '#ff7f50', '#6495ed', '#dc143c', '#00ffff',
+    '#00008b', '#008b8b', '#b8860b', '#a9a9a9', '#006400',
+    '#bdb76b', '#8b008b', '#556b2f', '#ff8c00', '#9932cc'
+  ];
+}
+  const allColors = window.globalColorList;
+  let nextColorIndex = window.globalInteractColorMap.size;
+
+  data.edges.forEach(e => {
+    const id = e.interact_id || 'unknown';
+    if (!window.globalInteractColorMap.has(id)) {
+      window.globalInteractColorMap.set(id, allColors[nextColorIndex % allColors.length]);
+      nextColorIndex++;
+    }
+    e._colorByInteract = window.globalInteractColorMap.get(id);
+  });  
+
+
+  ///////////////////////////////////////////////////////////////////////////////////
+  // === 图例：只显示当前社区里实际出现的 interact_id ===
+  const interactIds = Array.from(new Set(data.edges.map(e => e.interact_id).filter(Boolean)));
+  const colorScaleInteract = d3.scaleOrdinal()
+    .domain(interactIds)
+    .range(interactIds.map(id => window.globalInteractColorMap.get(id)));
+
+  renderEdgeLegend(interactIds, colorScaleInteract);
+
+
+  function getId(v) {
+    if (Array.isArray(v)) return getId(v[0]);
+    if (typeof v === 'object' && v !== null) return getId(v.id);
+    return String(v);
+  }
+  const dataType  = d3.select('#dataType').property('value');
+  const omicsType = d3.select('#omicsType').property('value');
+  const rmin = +d3.select('#rangeMin').property('value');
+  const rmax = +d3.select('#rangeMax').property('value');
+  data.nodes.forEach(n => {
+    const suffix = omicsType === 'snv'
+      ? 'vals'
+      : (dataType === 'zscore'
+        ? 'z'
+        : dataType === 'norm'
+          ? 'norm'
+          : 'vals');
+    const key = `${omicsType}_${suffix}`;
+    const vals = n[key];
+    n._highlight = Array.isArray(vals) && vals.some(v => v >= rmin && v <= rmax);
+  });
+
+  // 2. 初始化 SVG
+    const svg = d3.select('#networkViz');
+    svg.selectAll('*').remove();
+    svg.append('defs').append('marker')
+    .attr('id', 'arrow')
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 3) // 可调：指向目标中心
+    .attr('refY', 0)
+    .attr('markerUnits', 'strokeWidth')
+    .attr('markerWidth', 3)
+    .attr('markerHeight', 3)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-5L10,0L0,5')
+    .attr('fill', 'context-stroke'); // 自动继承线条颜色
+    const container = svg.append("g");
+
+// 2. 初始偏移 transform（右移 600, 下移 100）
+   //let currentTransform = d3.zoomIdentity.translate(600, 100);
+     let currentTransform = d3.zoomIdentity; 
+// 3. 创建 Zoom 行为（禁用滚轮，只允许拖动）
+   //const zoom = d3.zoom()
+     //.filter(event => event.type === "mousedown" || event.type === "mousemove")
+     //.on("zoom", (event) => {
+      // currentTransform = event.transform;
+      // container.attr("transform", currentTransform);
+   //});
+
+  const zoom = d3.zoom()
+  .filter(e =>
+    e.type === "mousedown"   ||   // 鼠标拖拽
+    e.type === "mousemove"   ||   // 拖拽过程
+    e.type === "touchstart"       // 触摸拖拽
+  )
+  .on("zoom", e => {
+    currentTransform = e.transform;
+    container.attr("transform", currentTransform);
+  });
+
+// 绑定 zoom，并移除可能残留的 wheel 监听（双保险）
+svg.call(zoom)
+   .call(zoom.transform, currentTransform)
+   .on("wheel.zoom", null);      // ← wheel 事件被完全解绑
+
+// 4. 应用 zoom 行为并设置初始位置
+   //svg.call(zoom).call(zoom.transform, currentTransform);
+
+
+// 放大按钮
+  d3.select("#zoomIn").on("click", () => {
+    currentTransform = currentTransform.scale(1.2);
+    svg.transition().duration(300).call(zoom.transform, currentTransform);
+  });
+
+  d3.select("#zoomOut").on("click", () => {
+    currentTransform = currentTransform.scale(0.8);
+    svg.transition().duration(300).call(zoom.transform, currentTransform);
+  });
+  const width = +svg.attr("width") || 1000;
+  const height = +svg.attr("height") || 700;
+
+  // 3. nodes/edges 副本并过滤悬空边
+  const nodes = data.nodes.map(d => Object.assign({}, d));
+  //const nodeIds = new Set(nodes.map(d => Array.isArray(d.id) ? d.id[0] : d.id));//good
+  const nodeIds = new Set(nodes.map(d => String(Array.isArray(d.id) ? d.id[0] : d.id)));
+ // const nodeById = new Map(nodes.map(d => [Array.isArray(d.id) ? d.id[0] : d.id, d]));
+  const nodeById = new Map(nodes.map(d => [String(Array.isArray(d.id) ? d.id[0] : d.id), d]));
+  console.log('nodeById keys:', Array.from(nodeById.keys()));
+  const firstId = Array.isArray(nodes[0].id) ? nodes[0].id[0] : nodes[0].id;
+  console.log('nodeById.get(第一个节点id):', nodeById.get(firstId));
+  
+  
+  const id2 = Array.isArray(nodes[1].id) ? nodes[1].id[0] : nodes[1].id;
+  console.log('nodeById.get(第二个节点id):', nodeById.get(id2));
+
+  const id6 = Array.isArray(nodes[5].id) ? nodes[5].id[0] : nodes[5].id;
+  console.log('nodeById.get(第六个节点id):', nodeById.get(id6));
+  
+  console.log('nodeById.get(第二个节点id):', nodes[1].id[0]);
+  console.log('nodeById.get(第6个节点id):',  nodes[5].id);
+  
+ /*const edges = data.edges
+  .map(e => {
+    const getId = v => {
+      if (Array.isArray(v)) return getId(v[0]);
+      if (typeof v === 'object' && v !== null) return getId(v.id);
+      return String(v);
+    };
+      console.log("e.source:",e.source);
+      console.log("e.targete:",e.target);
+    return {
+      ...e,
+      source: getId(e.source),
+      target: getId(e.target),
+
+      weight: Array.isArray(e.weight) ? e.weight[0] : e.weight
+    };
+  })
+  .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
+  
+  */
+/*const edges = data.edges.map(e => {
+  const sourceId = getId(e.source);
+  const targetId = getId(e.target);
+  return {
+    ...e,
+    source: sourceId,
+    target: targetId,
+    weight: Array.isArray(e.weight) ? e.weight[0] : e.weight
+  };
+})
+  .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
+  */
+
+/*
+   const edgeMetric = d3.select('#edgeMetric').property('value'); // 'w_raw' | 'w_norm' | 'w_z'
+   const eMin = +d3.select('#eRangeMin').property('value');
+   const eMax = +d3.select('#eRangeMax').property('value');
+
+   const edges = data.edges
+   .map(e => {
+    const sourceId = getId(e.source);
+    const targetId = getId(e.target);
+    const val = (e && e[edgeMetric] != null) ? +e[edgeMetric] : +e.weight; // 兼容旧weight
+    return {
+      ...e,
+      source: sourceId,
+      target: targetId,
+      weight: Array.isArray(e.weight) ? e.weight[0] : e.weight, // 保留原始weight以防需要
+      _w: val,                                                   // 当前选择的度量值
+      _inRange: Number.isFinite(val) && val >= eMin && val <= eMax
+    };
+  })
+  .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
+*/
+
+
+
+
+  const edgeMetric = d3.select('#edgeMetric').property('value'); // 'w_raw' | 'w_norm' | 'w_z'
+  let eMin = +d3.select('#eRangeMin').property('value');
+  let eMax = +d3.select('#eRangeMax').property('value');
+
+  // 用户把最小/最大填反了 → 交换
+  if (Number.isFinite(eMin) && Number.isFinite(eMax) && eMin > eMax) [eMin, eMax] = [eMax, eMin];
+
+  const toNum = v => {
+    if (Array.isArray(v)) v = v[0];
+     const n = +v;
+    return Number.isFinite(n) ? n : NaN;
+ };
+
+ const edges = data.edges
+  .map(e => {
+    const sourceId = getId(e.source);
+    const targetId = getId(e.target);
+    // 先取选中的度量（w_raw / w_norm / w_z），不行再退回 weight，再不行给 0
+    const metW = toNum(e?.[edgeMetric]);
+    const rawW = toNum(e?.weight);
+    const safeW = Number.isFinite(metW) ? metW : (Number.isFinite(rawW) ? rawW : 0);
+
+    return {
+      ...e,
+      source: sourceId,
+      target: targetId,
+      weight: Number.isFinite(rawW) ? rawW : 0,   // 保存原始 weight（数值化）
+      _w: safeW,                                   // 当前选择度量，用它来画
+      _inRange: (safeW >= eMin && safeW <= eMax)
+    };
+  })
+  .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
+		  
+    console.log("标准化后的边 edge 示例：", edges.slice(0, 5));
+    console.log('edges 中第一个 source:', edges[0].source);
+    console.log('能否找到这个节点:', nodeById.get(edges[0].source));
+
+  // 4. 边类型、并行统计
+
+/**/
+const C_NEG  = d3.select('#edgeNeg').property('value')  || '#0000FF';
+const C_ZERO = d3.select('#edgeZero').property('value') || '#FFFFFF'; // 0=白
+const C_POS  = d3.select('#edgePos').property('value')  || '#FF0000';
+
+const negScale = d3.scaleLinear().domain([eMin, 0]).range([C_NEG,  C_ZERO]).clamp(true);
+const posScale = d3.scaleLinear().domain([0,    eMax]).range([C_ZERO, C_POS]).clamp(true);
+
+function edgeColor(d) {
+  // 想让未高亮/不在范围的边也走渐变，上面这句判断删掉就行
+  if (!(d._highlight && d._inRange)) return '#CCCCCC';
+  const v = d._w;
+  if (!Number.isFinite(v)) return '#CCCCCC';
+  if (v === 0) return C_ZERO;
+  return v < 0 ? negScale(v) : posScale(v);
+}
+
+// 统一线宽：用“原公式 sw”在本图中的最大值，至少 2.5 px 更明显
+const maxAbsW = d3.max(edges, e => Math.abs(e._w)) || 1;
+const sw = v => Math.max(0.5, 1.5 * Math.sqrt(Math.abs(v || 0)));
+const CONST_SW = Math.max(2.5, sw(maxAbsW));
+
+/**/
+
+  const pairCount = new Map();
+  edges.forEach(e => {
+    //const key = [e.source, e.target].sort().join('|');
+    const key = `${e.source}|${e.target}`;   //direction edge
+    const cnt = (pairCount.get(key) || 0) + 1;
+    pairCount.set(key, cnt);
+    e._parallel = cnt;
+  });
+  edges.forEach(e => {
+    const s = nodeById.get(e.source);
+    const t = nodeById.get(e.target);
+    e._highlight = s && t && s._highlight && t._highlight;
+  });
+  //const straight = edges.filter(d => d._parallel === 1);
+  //const curved = edges.filter(d => d._parallel > 1);
+    const curved = edges;
+
+  // 5. 力学仿真
+  // 如果有历史位置，可以保留初始 layout
+  nodes.forEach((d, i) => {
+  // 如果 x/y 是 [value]，提取为数字
+  if (Array.isArray(d.x) && d.x.length === 1) {
+    d.x = d.x[0];
+  }
+  if (Array.isArray(d.y) && d.y.length === 1) {
+    d.y = d.y[0];
+  }
+
+  // 类型检查与修复：不是数字或是 NaN，就用默认圆形布局
+  if (typeof d.x !== 'number' || isNaN(d.x)) {
+    d.x = width / 2 + 100 * Math.cos(2 * Math.PI * i / nodes.length);
+  }
+  if (typeof d.y !== 'number' || isNaN(d.y)) {
+    d.y = height / 2 + 100 * Math.sin(2 * Math.PI * i / nodes.length);
+  }
+
+  // 可选调试输出
+  console.log(`第 ${i + 1} 个节点:`, d.id, 'x =', d.x, 'y =', d.y); 
+ });
+
+ //const simulation = d3.forceSimulation(nodes)
+ //.force("link", d3.forceLink(edges).id(d => getId(d.id)).distance(100))
+ //.force("charge", d3.forceManyBody().strength(-120))  // 更温和的排斥力
+  //.force("center", d3.forceCenter(width / 2, height / 2))
+  //.alphaDecay(0.05)  // 收敛速度更快
+  //.velocityDecay(0.9)  // 滑动更自然
+  //.alphaMin(0.001)
+  //.on("tick", ticked);
+
+  // 6. 拖拽
+  function drag(sim) {
+    function dragstarted(event, d) {
+      if (!event.active) sim.alphaTarget(0.5).restart();
+      d.fx = d.x; d.fy = d.y;
+    }
+    function dragged(event, d) {
+      d.fx = event.x; d.fy = event.y;
+    }
+    function dragended(event, d) {
+      sim.alphaTarget(0);
+      // 保持节点停留在拖拽点，不弹回
+      //d.fx = d.x;
+      //d.fy = d.y;
+    }
+    return d3.drag()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended);
+  }
+
+  // 7. 边
+  /*const edgeSelStraight = container.selectAll('line.edge')
+    .data(straight)
+    .enter().append('line')
+    .attr('class', 'edge')
+    //.attr('stroke-width', d => Math.sqrt(d.weight) * 1.5)
+    .attr('stroke-width', d => Math.sqrt(Math.abs(d.weight)) * 1.5)
+    .attr('stroke', d => d._highlight
+      ? (d.weight > 0 ? colorConfig.edge.pos
+        : d.weight < 0 ? colorConfig.edge.neg
+        : colorConfig.edge.zero)
+      : '#CCCCCC')
+    .attr('opacity', d => d._highlight ? 1 : 0.2)
+    .attr('marker-end', 'url(#arrow)');
+
+  const edgeSelCurved = container.selectAll('path.edge')
+    .data(curved)
+    .enter().append('path')
+    .attr('class', 'edge')
+    .attr('fill', 'none')
+    .attr('stroke-width', d => Math.sqrt(Math.abs(d.weight)) * 1.5)
+    .attr('stroke', d => d._highlight
+      ? (d.weight > 0 ? colorConfig.edge.pos
+        : d.weight < 0 ? colorConfig.edge.neg
+        : colorConfig.edge.zero)
+      : '#CCCCCC')
+    .attr('opacity', d => d._highlight ? 1 : 0.2)
+    .attr('marker-end', 'url(#arrow)');
+*/
+
+
+   // 统一的线宽函数（贴在“画边”片段的最前面即可）
+//const sw = v => Math.max(0.5, 1.5 * Math.sqrt(Math.abs(v || 0)));
+
+/*const edgeSelStraight = container.selectAll('line.edge')
+  .data(straight)
+  .enter().append('line')
+  .attr('class', 'edge')
+  .attr('stroke-width', d => sw(d._w))
+  .attr('stroke', d => d._highlight && d._inRange
+    ? (d._w > 0 ? colorConfig.edge.pos
+      : d._w < 0 ? colorConfig.edge.neg
+      : colorConfig.edge.zero)
+    : '#CCCCCC')
+  .attr('opacity', d => (d._highlight && d._inRange) ? 1 : 0.2)
+  .attr('marker-end', 'url(#arrow)');
+
+const edgeSelCurved = container.selectAll('path.edge')
+  .data(curved)
+  .enter().append('path')
+  .attr('class', 'edge')
+  .attr('fill', 'none')
+  .attr('stroke-width', d => sw(d._w))
+  .attr('stroke', d => d._highlight && d._inRange
+    ? (d._w > 0 ? colorConfig.edge.pos
+      : d._w < 0 ? colorConfig.edge.neg
+      : colorConfig.edge.zero)
+    : '#CCCCCC')
+  .attr('opacity', d => (d._highlight && d._inRange) ? 1 : 0.2)
+  .attr('marker-end', 'url(#arrow)');
+
+*/
+
+/*const edgeSelStraight = container.selectAll('line.edge')
+  .data(straight)
+  .enter().append('line')
+  .attr('class', 'edge')
+  .attr('stroke-width', CONST_SW)       // 统一线宽
+  .attr('stroke', d => edgeColor(d))    // 渐变颜色
+  //.attr('opacity', d => (d._highlight && d._inRange) ? 1 : 0.2)
+  .attr('opacity', d => d._inRange ? 1 : 0.2)
+  .attr('marker-end', 'url(#arrow)');
+*/
+const edgeSelCurved = container.selectAll('path.edge')
+  .data(curved)
+  .enter().append('path')
+  .attr('class', 'edge')
+  .attr('fill', 'none')
+  .attr('stroke-width', d => {
+    const v = Math.abs(d._w || 0);
+    const scale = d3.scaleLinear()
+      .domain([0, d3.max(edges, e => Math.abs(e._w || 0))])
+      .range([1, 6]);
+    return scale(v);
+  })
+  //.attr('stroke', d => edgeColor(d))    // 渐变颜色
+  //.attr('stroke', d => d._colorByInteract || '#888')
+  //.attr('opacity', d => (d._highlight && d._inRange) ? 1 : 0.2)
+   .attr('stroke', d => {
+    const base = d._colorByInteract || '#999';
+    const v = Math.abs(d._w || 0);
+    const maxv = d3.max(edges, e => Math.abs(e._w || 0));
+    const alpha = Math.min(1, 0.3 + 0.7 * (v / maxv)); // 0.3~1 深浅调节
+    return d3.color(base).darker(1 - alpha).formatHex();
+  })
+  .attr('opacity', d => d._inRange ? 1 : 0.2)
+  .attr('marker-end', 'url(#arrow)');
+
+
+	  
+
+  const simulation = d3.forceSimulation(nodes)
+    .force('link',   d3.forceLink(edges).id(d => getId(d.id)).distance(100))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(width/2, height/2))
+    .alphaDecay(0.05)
+    .velocityDecay(0.9)
+    .alphaMin(0.001)
+    .on('tick', ticked);
+
+  if (!nodes.length) { 
+    d3.select('#networkViz').selectAll('*').remove();
+    return;
+  }
+  // 8. 节点group + 多环图 + 拖拽
+  const barW = 4, gap = 2;
+  const sampleCount = nodes[0].exp_vals.length, angleStep = 2 * Math.PI / sampleCount;
+  const nodeSel = container.selectAll('g.node')
+    .data(nodes)
+    .enter().append('g')
+    .attr('class', 'node')
+    .call(drag(simulation)); // <== 拖拽交互
+    for (let i = 0; i < 4; ++i) simulation.tick();
+    simulation.stop();
+    ticked();
+    fitToView();
+    lastLayout = nodes.map(n => ({
+     id: String(Array.isArray(n.id) ? n.id[0] : n.id),
+     x: n.x,
+     y: n.y
+    }));
+    //simulation.stop();
+  nodeSel.each(function(nodeDatum) {
+    const typeSuffix = dataType === 'zscore' ? '_z' : dataType === 'norm' ? '_norm' : '_vals';
+    const rings = [
+      { type: 'snv', vals: nodeDatum['snv' + typeSuffix], scale: colorConfig.snv, inner: 0 },
+      { type: 'cnv', vals: nodeDatum['cnv' + typeSuffix], scale: colorConfig.cnv, inner: barW + gap },
+      { type: 'mty', vals: nodeDatum['mty' + typeSuffix], scale: colorConfig.mty, inner: 2 * (barW + gap) },
+      { type: 'exp', vals: nodeDatum['exp' + typeSuffix], scale: colorConfig.exp, inner: 3 * (barW + gap) },
+      { type: 'stage', vals: nodeDatum.stage_idx,scale: null,inner: 4 * (barW + gap) }
+    ].filter(r => Array.isArray(r.vals));
+    rings.forEach(ring => {
+      const isSelectedOmics = ring.type === omicsType;
+      const isStage = ring.type === 'stage';
+      const slices = ring.vals.map((v, i) => ({
+        start: i * angleStep,
+        end: (i + 1) * angleStep,
+        value: v
+      }));
+      d3.select(this).selectAll(`path.r${ring.inner}`)
+        .data(slices).enter().append('path')
+        .attr('d', s => d3.arc()({
+          innerRadius: ring.inner,
+          outerRadius: ring.inner + barW,
+          startAngle: s.start,
+          endAngle: s.end
+        }))
+        .attr('fill', s => {
+         if (s.value == null || isNaN(s.value)) {
+             return 'transparent';   //or 'white'
+          }
+           // if (isSelectedOmics && (s.value < rmin || s.value > rmax)) {
+           //  return '#CCCCCC';
+           // }
+           // return ring.scale(s.value);
+	  if (!isStage && isSelectedOmics && (s.value < rmin || s.value > rmax)) return '#CCCCCC';
+             //return isStage ? getStageColor(s.value) : ring.scale(s.value);
+	     return isStage ? getStageColorByIndex(s.value) : ring.scale(s.value);
+         })
+	.attr('fill-opacity', s => {
+          if (isStage) return (s.value == null || isNaN(s.value)) ? 0 : 1;
+          if (!isSelectedOmics) return 1;
+          return (s.value >= rmin && s.value <= rmax) ? 1 : 0.2;
+        })
+        .attr('stroke-width',isStage?0:(isSelectedOmics ? 0.5 : 0))
+        .attr('stroke', s => {
+	  if (isStage) return 'none';
+          if (!isSelectedOmics) return 'none';
+          return (s.value >= rmin && s.value <= rmax)
+            ? ring.scale(s.value)
+            : '#CCCCCC';
+        });
+    });
+    d3.select(this).append('text')
+      .text(nodeDatum.id)
+      .attr('y', -((barW + gap) * rings.length) - 4)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '10px')
+      .style('pointer-events', 'none');
+  });
+
+  // 9. tick回调：力学刷新坐标
+  function ticked() {
+    // 刷新直线边
+  /*edgeSelStraight
+  .attr('x1', d => {
+    const x = nodeById.get(getId(d.source))?.x ?? 0;
+    return x;
+  })
+  .attr('y1', d => nodeById.get(getId(d.source))?.y ?? 0)
+  .attr('x2', d => nodeById.get(getId(d.target))?.x ?? 0)
+  .attr('y2', d => nodeById.get(getId(d.target))?.y ?? 0);
+  */
+edgeSelCurved
+  .attr('d', d => {
+    const s = nodeById.get(getId(d.source));
+    const t = nodeById.get(getId(d.target));
+    if (!s || !t) {
+      console.warn(`❌ 无法找到 source 或 target:`, d.source, d.target);
+      return '';
+    }
+    const mx = (s.x + t.x) / 2;
+    const my = (s.y + t.y) / 2;
+    //const offset = 25;
+    const offset = 8 * (d._parallel - 1);
+    //const dir = (d._parallel % 2) ? -1 : +1;
+    const dir = (d._parallel % 2 === 0) ? 1 : -1;
+    const cx_ctrl = mx;
+    const cy_ctrl = my + dir * offset;
+    return `M${s.x},${s.y} Q${cx_ctrl},${cy_ctrl} ${t.x},${t.y}`;
+  });
+
+    // 刷新节点group
+    nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+  }
+  //const simulation = d3.forceSimulation(nodes)      // ★★
+   //.force('link',   d3.forceLink(edges).id(d => getId(d.id)).distance(100))
+   //.force('charge', d3.forceManyBody().strength(-120))
+   //.force('center', d3.forceCenter(width/2, height/2))
+   //.alphaDecay(0.05)
+   //.velocityDecay(0.9)
+   //.alphaMin(0.001)
+   //.on('tick', ticked);
+
+
+
+}
+
+
+
+function renderEdgeLegend(interactIds, colorScale) {
+  const container = d3.select('#controls');
+  container.selectAll('.edge-legend').remove();
+
+  const wrap = container.append('div')
+    .attr('class', 'edge-legend')
+    .style('margin-top', '6px');
+
+  wrap.append('span')
+    .text('Edge Interactions:')
+    .style('font-weight', 'bold')
+    .style('margin-right', '8px');
+
+  interactIds.forEach(id => {
+    const row = wrap.append('span')
+      .style('margin-right', '12px')
+      .style('display', 'inline-flex')
+      .style('align-items', 'center');
+
+    row.append('span')
+      .style('width', '12px')
+      .style('height', '12px')
+      .style('background', colorScale(id))
+      .style('border', '1px solid #999')
+      .style('margin-right', '4px');
+
+    row.append('span').text(id);
+  });
+}
+
+
+
+  
+ 
+d3.select('#filterBtn').on('click', () => {
+  if (typeof currentData !== 'undefined' && currentData) {
+    drawNetwork(currentData);
+  } else {
+    console.warn('当前数据未加载完，无法筛选');
+  }
+});  
+
+// 计算内容包围盒（container <g> 的 bbox）并留白
+function getContentBBox(padding = 20) {
+  const svgNode = document.getElementById('networkViz');
+  const container = svgNode.querySelector('g'); // drawNetwork 里创建的 <g>
+  if (!container) return null;
+  const b = container.getBBox();
+  return {
+    x: b.x - padding,
+    y: b.y - padding,
+    width:  b.width  + 2 * padding,
+    height: b.height + 2 * padding,
+    svg: svgNode,
+    container
+  };
+}
+
+// 一键让全部节点入镜（自适应到当前视口）
+function fitToView() {
+  const info = getContentBBox(40);
+  if (!info) return;
+  const svg = d3.select(info.svg);
+  const width  = +svg.attr('width')  || 1000;
+  const height = +svg.attr('height') || 700;
+
+  const scale = Math.min(width / info.width, height / info.height) * 0.95;
+  const tx = width  / 2 - scale * (info.x + info.width  / 2);
+  const ty = height / 2 - scale * (info.y + info.height / 2);
+
+ // const zoom = d3.zoom().on('zoom', e => {
+   // d3.select(info.container).attr('transform', e.transform);
+ // });
+ // svg.call(zoom);
+ // svg.transition().duration(300)
+  //   .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+ const t = d3.zoomIdentity.translate(tx, ty).scale(scale);
+
+ if (window.zoomBehavior) {
+  svg.transition().duration(300)
+     .call(window.zoomBehavior.transform, t)
+     .selection()
+     .on('wheel.zoom', null)      // 再保险：确保禁用
+     .on('dblclick.zoom', null);
+ } else {
+  // 极端兜底（通常用不到）
+  d3.select(info.container).attr('transform', `translate(${tx},${ty}) scale(${scale})`);
+ }
+
+}
+
+// 生成一个“适配后”的 SVG 克隆（用于下载）
+function snapshotSVG() {
+  const info = getContentBBox(20);
+  if (!info) return null;
+  const svgNode = info.svg.cloneNode(true);
+  svgNode.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgNode.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  svgNode.setAttribute('viewBox', `${info.x} ${info.y} ${info.width} ${info.height}`);
+  svgNode.setAttribute('width',  Math.round(info.width));
+  svgNode.setAttribute('height', Math.round(info.height));
+  return svgNode;
+}
+
+// 下载 SVG
+function saveSVG() {
+  const svgNode = snapshotSVG();
+  if (!svgNode) return;
+  const ser = new XMLSerializer();
+  const svgStr = ser.serializeToString(svgNode);
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const id = d3.select('#commSelect').property('value') || 'community';
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${id}.svg`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// 矢量导出 PDF（和 SVG 一样清晰）
+// 矢量导出 PDF（用 svg2pdf 的 jsPDF 插件 API）
+// 矢量导出 PDF（清晰度=SVG）
+/*
+ async function savePDF() {
+  const svgNode = snapshotSVG();
+  if (!svgNode) return;
+
+  const w = svgNode.viewBox.baseVal.width  || svgNode.width.baseVal.value;
+  const h = svgNode.viewBox.baseVal.height || svgNode.height.baseVal.value;
+
+  const PDFCtor = (window.jsPDF || (window.jspdf && window.jspdf.jsPDF));
+  if (!PDFCtor) { alert('jsPDF 未加载'); return; }
+
+  const orient = w > h ? 'l' : 'p';
+  const pdf = new PDFCtor({ orientation: orient, unit: 'pt', format: [w, h] });
+
+  if (typeof pdf.svg === 'function') {
+    // ✅ 首选：插件把 svg() 注入到了 pdf 实例
+    await pdf.svg(svgNode, {
+      x: 0, y: 0, width: w, height: h,
+      useCSS: true, preserveAspectRatio: 'xMidYMid meet'
+    });
+  } else if (typeof window.svg2pdf === 'function') {
+    // 备选：插件暴露了全局函数
+    window.svg2pdf(svgNode, pdf, { xOffset: 0, yOffset: 0, scale: 1, useCSS: true });
+  } else {
+    alert('svg2pdf 插件未加载成功（检查 <script> 引用顺序或网络）');
+    return;
+  }
+
+  const id = d3.select('#commSelect').property('value') || 'community';
+  pdf.save(`${id}.pdf`);
+}
+*/
+
+ async function savePDF() {
+  const svgNode = snapshotSVG();
+  if (!svgNode) return;
+
+  const w = svgNode.viewBox?.baseVal?.width  || svgNode.width.baseVal.value;
+  const h = svgNode.viewBox?.baseVal?.height || svgNode.height.baseVal.value;
+
+  const PDFCtor = (window.jsPDF || (window.jspdf && window.jspdf.jsPDF));
+  if (!PDFCtor) { alert('jsPDF 未加载'); return; }
+
+  const pdf = new PDFCtor({ orientation: w > h ? 'l' : 'p', unit: 'pt', format: [w, h] });
+
+  if (typeof pdf.svg === 'function') {
+    await pdf.svg(svgNode, { x:0, y:0, width:w, height:h, useCSS:true, preserveAspectRatio:'xMidYMid meet' });
+  } else if (typeof window.svg2pdf === 'function') {
+    window.svg2pdf(svgNode, pdf, { xOffset:0, yOffset:0, scale:1, useCSS:true });
+  } else {
+    const CanvgCtor = (window.canvg && (window.canvg.Canvg || window.canvg.default)) || window.Canvg || window.canvg;
+    if (!CanvgCtor) { alert('svg2pdf/canvg 都未就绪'); return; }
+
+    const SCALE = 3;
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(w * SCALE);
+    canvas.height = Math.round(h * SCALE);
+    const ctx = canvas.getContext('2d'); ctx.scale(SCALE, SCALE);
+
+    const svgString = new XMLSerializer().serializeToString(svgNode);
+    const v = (typeof CanvgCtor.from === 'function')
+      ? await CanvgCtor.from(ctx, svgString, { ignoreMouse:true, ignoreAnimation:true, enableRedraw:false })
+      : await CanvgCtor.fromString(ctx, svgString, { ignoreMouse:true, ignoreAnimation:true, enableRedraw:false });
+    await v.render();
+
+    const img = canvas.toDataURL('image/png');
+    pdf.addImage(img, 'PNG', 0, 0, w, h);
+  }
+
+  const id = d3.select('#commSelect').property('value') || 'community';
+  pdf.save(`${id}.pdf`);
+} 
+
+/* ===== 构建会话 JSON ===== */
+function buildSessionJSON() {
+  const sid = new URLSearchParams(location.search).get('sid') || '';
+
+  const state = {
+    sid,
+    community: d3.select('#commSelect').property('value'),
+    degreeRange: {
+      min: +d3.select('#degMin').property('value'),
+      max: +d3.select('#degMax').property('value')
+    },
+    dataFilter: {
+      dataType:  d3.select('#dataType').property('value'),
+      omicsType: d3.select('#omicsType').property('value'),
+      valueRange: {
+        min: +d3.select('#rangeMin').property('value'),
+        max: +d3.select('#rangeMax').property('value')
+      }
+    },
+    edgeFilter: {
+      metric: d3.select('#edgeMetric').property('value'),
+      range: {
+        min: +d3.select('#eRangeMin').property('value'),
+        max: +d3.select('#eRangeMax').property('value')
+      }
+    },
+    colors: {
+      exp: { neg: d3.select('#expNeg').property('value'), zero: d3.select('#expZero').property('value'), pos: d3.select('#expPos').property('value') },
+      mty: { neg: d3.select('#mtyNeg').property('value'), zero: d3.select('#mtyZero').property('value'), pos: d3.select('#mtyPos').property('value') },
+      snv: { v0: d3.select('#snv0').property('value'), v1: d3.select('#snv1').property('value') },
+      cnv: { neg: d3.select('#cnvNeg').property('value'), zero: d3.select('#cnvZero').property('value'), pos: d3.select('#cnvPos').property('value') },
+      edge:{ neg: d3.select('#edgeNeg').property('value'), zero: d3.select('#edgeZero').property('value'), pos: d3.select('#edgePos').property('value') }
+    },
+    // 当前显示的数据子集
+    data: (typeof currentData !== 'undefined' && currentData) ? {
+      nodes: currentData.nodes,
+      edges: currentData.edges
+    } : null,
+
+    // 最近一次节点坐标
+    layout: lastLayout,
+
+    // 源 JSON 路径（带 sid）
+    source: sid ? `uploads/${sid}/community_map_top100.json` : 'uploads/community_map_top100.json',
+
+    savedAt: new Date().toISOString()
+  };
+  return state;
+}
+
+/* ===== 触发下载 ===== */
+function saveJSON() {
+  const state = buildSessionJSON();
+  const text  = JSON.stringify(state, null, 2);
+  const blob  = new Blob([text], { type: 'application/json;charset=utf-8' });
+  const url   = URL.createObjectURL(blob);
+
+  const sid  = state.sid || 'nosid';
+  const comm = state.community || 'community';
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `session_${sid}_${comm}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ===== 绑定按钮（和 Save PDF 同级） ===== */
+const saveJSONBtn = document.getElementById('saveJSONBtn');
+if (saveJSONBtn) saveJSONBtn.onclick = () => saveJSON();
+	    
+
+
+ })();
+  </script>
+</body>
+</html>
+
