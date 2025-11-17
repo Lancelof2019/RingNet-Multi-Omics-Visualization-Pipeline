@@ -1,6 +1,4 @@
 
-#devtools::install_github("sqjin/CellChat", lib="~/R_libs")
-library(CellChat, lib.loc="~/R_libs")
 library(patchwork)
 library(igraph)
 library(dplyr)
