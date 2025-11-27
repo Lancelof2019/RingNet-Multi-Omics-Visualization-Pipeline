@@ -545,32 +545,30 @@ community_map_list <- parLapply(cl, community_ids, function(comm) {
       if (is.finite(rng[1]) && is.finite(rng[2]) && rng[1] < rng[2]) -1 + 2*(tmp-rng[1])/(rng[2]-rng[1]) else rep(0, length(tmp))
     } else rep(NA_real_, length(samples))
 
-    snv_vals <- if (ncol(snv_m)>0 && gene %in% colnames(snv_m)) as.numeric(snv_m[, gene] > 0) else rep(NA_real_, length(samples))
+snv_raw <- if (ncol(snv_m) > 0 && gene %in% colnames(snv_m)) {
+  as.numeric(snv_m[, gene])
+} else {
+  rep(NA_real_, length(samples))
+}
 
-    if (ncol(snv_m) > 0 && gene %in% colnames(snv_m)) {
-      tmp_snv  <- as.numeric(snv_m[, gene] > 0)   # 原始 0/1
-      snv_vals <- tmp_snv
+snv_vals <- snv_raw
 
-  # Min-Max 标准化到 [-1, 1]
-      rng <- range(tmp_snv, na.rm = TRUE)
-      if (is.finite(rng[1]) && is.finite(rng[2]) && rng[1] < rng[2]) {
-        snv_norm <- -1 + 2 * (tmp_snv - rng[1]) / (rng[2] - rng[1])
-      } else {
-        snv_norm <- rep(0, length(tmp_snv))
-      }
+snv_norm <- if (all(is.na(snv_raw))) {
+  rep(NA_real_, length(samples))
+} else {
+  rng <- range(snv_raw, na.rm = TRUE)
+  if (is.finite(rng[1]) && is.finite(rng[2]) && rng[1] < rng[2]) {
+    -1 + 2 * (snv_raw - rng[1]) / (rng[2] - rng[1])
+  } else {
+    rep(0, length(snv_raw))
+  }
+}
 
-     # Z-score
-      sd_snv <- suppressWarnings(sd(tmp_snv, na.rm = TRUE))
-      if (is.finite(sd_snv) && sd_snv > 0) {
-       snv_z <- as.numeric(scale(tmp_snv))
-      } else {
-        snv_z <- rep(0, length(tmp_snv))
-      }
-     } else {
-      snv_vals <- rep(NA_real_, length(samples))
-      snv_norm <- rep(NA_real_, length(samples))
-      snv_z    <- rep(NA_real_, length(samples))
-     }
+snv_z <- if (all(is.na(snv_raw))) {
+  rep(NA_real_, length(samples))
+} else {
+  as.numeric(scale(snv_raw))
+}
 
     cnv_norm <- if (ncol(cnv_m)>0 && gene %in% colnames(cnv_m)) as.numeric(cnv_m[, gene]) else rep(NA_real_, length(samples))
 
