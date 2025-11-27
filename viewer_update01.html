@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+	<meta charset="UTF-8">
+	<title>Multi-omics Visulization</title>
+	<script src="https://d3js.org/d3.v6.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/d3@6.7.0/dist/d3.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+	<script>window.jsPDF = window.jspdf && window.jspdf.jsPDF;</script>
+	<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.4/dist/svg2pdf.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/canvg@3.0.10/lib/umd.min.js" defer></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #controls {
+      padding: 10px;
+      background: #f7f7f7;
+      border-bottom: 1px solid #ddd;
+      position: fixed; /* stick on the top  */
+      top: 0; left: 0; right: 0;
+      min-height: 100px;    
+      z-index: 100;
+    }
+
+    #controls label, #controls div {
+      margin-right: 20px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    #controls input[type="color"] {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    /********************************************/
+    #networkContainer {
+     position: absolute;
+     top: 100px; left: 0; right: 0; bottom: 0;
+     overflow: auto;      /* can always roll */
+     background: white;
+
+    
+    }
+
+    #networkViz {
+      display: block;
+      width: 700%;    /*  2 times wider than initial width */
+      height: 700%;   /*  2 times wider than initial width */
+      background: white;
+    }
+    #zoomControls {
+      position: fixed;
+      top: 120px;
+      right: 20px;
+      z-index: 200;
+    }
+
+    #zoomControls button {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 18px;
+      width: 40px;
+      height: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label>
+      Community：
+      <select id="commSelect"></select>
+    </label>
+    <label>
+      Degree Range：
+      <input type="number" id="degMin" value="0" min="0" max="500" style="width:60px;">
+      –
+      <input type="number" id="degMax" value="500" min="0" max="500" style="width:60px;">
+       <button id="fitBtn">Fit</button>
+       <button id="saveSVGBtn">Save SVG</button>
+       <button id="savePDFBtn">Save PDF</button>
+       <button id="saveJSONBtn">Save JSON</button>
+
+     </label>
+     <br> 
+     <div id="colorPickers" style="margin-top:8px;">
+	  <span>Data1：</span>
+	  <input type="color" id="expNeg" value="#0000FF" title="Exp Negative" />
+	  <input type="color" id="expZero" value="#F7F7F7" title="Exp Zero" />
+	  <input type="color" id="expPos" value="#FF0000" title="Exp Positive" />
+      <span style="display:inline-block; width:30px;"></span>  
+      <span>Data2：</span>
+      <input type="color" id="mtyNeg" value="#0000FF" title="Mty Negative" />
+      <input type="color" id="mtyZero" value="#F7F7F7" title="Mty Zero" />
+      <input type="color" id="mtyPos" value="#FF0000" title="Mty Positive" />
+      <span style="display:inline-block; width:30px;"></span> 
+      <span>Data3：</span>
+      <input type="color" id="snv0" value="#EEEEEE" title="No Variation" />
+      <input type="color" id="snv1" value="#00AA00" title="Yes Variation" />
+      <span style="display:inline-block; width:30px;"></span> 
+      <span>Data4：</span>
+      <input type="color" id="cnvNeg" value="#0000FF" title="CNV Negative" />
+      <input type="color" id="cnvZero" value="#F7F7F7" title="CNV Zero" />
+      <input type="color" id="cnvPos" value="#FF0000" title="CNV Positive" />
+      <br>
+    </div>  
+    <br>
+    <div style="display:inline-block; margin-top:0; vertical-align:middle;">
+     <label>
+       Data:
+       <select id="omicsType">
+        <option value="exp">Data1</option>
+        <option value="mty">Data2</option>
+        <option value="snv">Data3</option>
+        <option value="cnv">Data4</option>
+       </select>
+      </label>
+     <label>
+       Data Norm:
+      <select id="dataType">
+        <option value="raw">Raw</option>
+        <option value="norm">Min-Max norm</option>
+        <option value="zscore">Z-score</option>
+       </select>
+      </label>
+      <label>
+
+     <label>
+       Value Range:
+        <input type="number" id="rangeMin" value="-1" step="0.1" style="width:60px;"> -
+        <input type="number" id="rangeMax" value="1" step="0.1" style="width:60px;">
+     </label>
+       <button id="filterBtn">Filter</button>
+     </div>
+     <br>
+     <div class="legend-row" style="margin-top:8px;">
+       <span>Group：</span>
+       <span id="stageLegend" class="legend-inline"></span>
+     </div>
+    <br>
+    <div>
+      <span>Edges：</span>
+      Negative: <input type="color" id="edgeNeg" value="#00FF00" title="Negative weight" />
+      Zero: <input type="color" id="edgeZero" value="#FFFFFF" title="Zero weight" />
+      Postive: <input type="color" id="edgePos" value="#FF00FF" title="Postive Weight" />
+     </div>
+  <br>
+  <div style="margin-top:8px;">
+    <span>Edge Data Norm:</span>
+    <select id="edgeMetric">
+     <option value="w_raw">Raw</option>
+     <option value="w_norm">Min-Max Norm</option>
+     <option value="w_z">Z-score</option>
+    </select>
+    <label style="margin-left:12px;">
+      Range:
+     <input type="number" id="eRangeMin" value="-1" step="0.1" style="width:80px;">
+      –
+     <input type="number" id="eRangeMax" value="1"  step="0.1" style="width:80px;">
+    </label>
+    <button id="edgeFilterBtn">Filter edges</button>
+  </div>
+
+
+  </div>
+    
+  <!-- zoom control item displaying on the right -->
+	<div id="zoomControls">
+	  <button id="zoomIn">➕</button>
+	  <button id="zoomOut">➖</button>
+	</div>
+   
+  
+  
+   <div id="networkContainer">
+     <svg id="networkViz">
+      <defs>
+      <!-- arrows marker -->
+         <marker id="arrow" viewBox="0 -5 10 10"
+                refX="6" refY="0"
+                markerUnits="strokeWidth"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto">
+          <path d="M0,-5L10,0L0,5" fill="context-stroke"/>
+        </marker>
+     </defs>
+        
+    </svg>
+        
+    </div>
+  
+  <script>
+  (function(){
+    
+    let currentData = null;
+    let lastLayout = []; 
+    const viewWidth  = window.innerWidth;
+    const viewHeight = window.innerHeight - 100;  
+
+    // set SVG in standard size
+    const svg = d3.select('#networkViz')
+      .attr('width',  viewWidth)
+      .attr('height', viewHeight);
+    
+    let colorConfig = {};
+
+    // 每个 omics 自己的度量模式：raw / norm / zscore
+    const METRICS = ['raw', 'norm', 'zscore'];
+    let omicsMetric = {
+      exp: 'raw',
+      mty: 'raw',
+      snv: 'raw',
+      cnv: 'raw'
+    };
+	    function getColorScales() {
+	      // gene expression
+	      colorConfig.exp = d3.scaleLinear()
+	        .domain([-1, 0, 1])
+	        .range([
+	          d3.select('#expNeg').property('value'),
+	          d3.select('#expZero').property('value'),
+	          d3.select('#expPos').property('value')
+	        ]);
+	
+	      // methylation
+	      colorConfig.mty = d3.scaleLinear()
+	        .domain([-1, 0, 1])
+	        .range([
+	          d3.select('#mtyNeg').property('value'),
+	          d3.select('#mtyZero').property('value'),
+	          d3.select('#mtyPos').property('value')
+	        ]);
+	
+	      // Single Nucleotide Variant
+	      colorConfig.snv = d3.scaleOrdinal()
+	        .domain([0,1])
+	        .range([
+	          d3.select('#snv0').property('value'),
+	          d3.select('#snv1').property('value')
+	        ]);
+	
+	      // copy number variation 
+	      colorConfig.cnv = d3.scaleLinear()
+	        .domain([-1, 0, 1])
+	        .range([
+	          d3.select('#cnvNeg').property('value'),
+	          d3.select('#cnvZero').property('value'),
+	          d3.select('#cnvPos').property('value')
+	        ]);
+	
+	      // edge
+	      colorConfig.edge = {
+	        neg:  d3.select('#edgeNeg').property('value'),
+	        zero: d3.select('#edgeZero').property('value'),
+	        pos:  d3.select('#edgePos').property('value')
+	      };
+	    }
+	
+	
+	    const DEFAULT_STAGE_COLORS = [
+	      '#1f77b4', // 0
+	      '#d62728', // 1
+	      '#2ca02c', // 2
+	      '#ffbf00', // 3
+	      '#9467bd', // 4
+	      '#ff7f0e'  // 5
+	    ];
+	
+	  const STAGE_IDS = [0,1,2,3,4,5];
+	  const stageColorMap = new Map(STAGE_IDS.map(i => [i, DEFAULT_STAGE_COLORS[i]]));
+	
+	
+	function setStageColor(i, hex) {
+	  if (!Number.isInteger(i) || i < 0) return;
+	  if (/^#[0-9A-Fa-f]{6}$/.test(hex)) stageColorMap.set(i % STAGE_IDS.length, hex);
+	}
+	function getStageColorByIndex(v) {
+	  const n = Number(v);
+	  if (!Number.isFinite(n)) return 'transparent';
+	  const i = Math.floor(n);
+	  if (i < 0) return 'transparent'; // if data=-1,it can be transparent
+	  const k = i % STAGE_IDS.length;
+	  return stageColorMap.get(k) || DEFAULT_STAGE_COLORS[k];
+	}
+	
+	
+	 
+	
+	function renderStageLegend() {
+	  const container = d3.select('#stageLegend');
+	  if (container.empty()) return;
+	
+	  container.selectAll('*').remove();
+	
+	  const wrap = container.append('div')
+	    .style('display','inline-flex')
+	    .style('gap','14px')
+	    .style('align-items','center')
+	    .style('flex-wrap','wrap');
+	
+	  // calculate the live group existing in community
+	  const present = new Set();
+	  if (currentData?.nodes?.length) {
+	    currentData.nodes.forEach(n => {
+	      const arr = Array.isArray(n.stage_idx) ? n.stage_idx : [];
+	      arr.forEach(v => {
+	        const x = Math.floor(+v);
+	        if (Number.isFinite(x) && x >= 0) present.add(x % STAGE_IDS.length);
+	      });
+	    });
+	  }
+	
+	  STAGE_IDS.forEach(i => {
+	    const hasData = present.has(i);
+	    const color = stageColorMap.get(i) || DEFAULT_STAGE_COLORS[i];
+	
+	    const row = wrap.append('label')
+	      .style('display','inline-flex')
+	      .style('align-items','center')
+	      .style('gap','8px');
+	
+	    row.append('span')
+	      .text(`group ${i}`)
+	      .style('opacity', hasData ? 1 : 0.45);
+	
+	    row.append('input')
+	      .attr('type','color')
+	      .attr('id', `stageColor-${i}`)
+	      .attr('value', color)
+	      .property('value', color)
+	      .property('disabled', !hasData)               // no data will be forbidden
+	      .style('width','28px')                        
+	      .style('height','28px')
+	      .style('padding','0')
+	      .style('border','1px solid #ccc')
+	      .style('cursor', hasData ? 'pointer' : 'not-allowed')
+	      // visulization
+	      .style('filter', hasData ? null : 'grayscale(100%) brightness(0.85)')
+	      .style('opacity', hasData ? 1 : 0.7)
+	      .on('input', function () {
+	        if (!hasData) return;
+	        setStageColor(i, this.value);
+	        if (currentData) drawNetwork(currentData);
+	      })
+	      .on('change', function () {
+	        if (!hasData) return;
+	        setStageColor(i, this.value);
+	        if (currentData) drawNetwork(currentData);
+	      });
+	  });
+	}
+
+  //load json file
+
+	  const sid = new URLSearchParams(location.search).get('sid') || '';
+	  const jsonPath = sid ? `uploads/${sid}/community_map_top100.json`: 'uploads/community_map_top100.json';
+	  fetch(jsonPath)
+	   .then(r => r.json())
+	   .then(json => {
+	    const dataArr = Array.isArray(json) ? json : Object.values(json);
+	    window.allCommunities = dataArr;
+	    const sel = d3.select('#commSelect');
+	    /* drop-down menu */
+	    dataArr.forEach(item => {
+	      sel.append('option')
+	         .attr('value', item.comm)
+	         .text(`community ${item.comm}`);
+	    });
+	
+	
+	    sel.property('value', dataArr[0].comm);
+	    getColorScales();
+	    sel.on('change', renderCommunity);
+	    renderCommunity();                // initial render
+	
+	    d3.selectAll('#degMin, #degMax').on('change', renderCommunity); 
+	  
+	    // Color picker change → redraw immediately 
+	   d3.selectAll('#colorPickers input[type="color"]').on('input', () => {
+	    getColorScales();
+	    if (currentData) drawNetwork(currentData);
+	   });
+	    d3.selectAll('#edgeNeg, #edgeZero, #edgePos').on('input', () => {
+	      getColorScales();
+	      if (currentData) drawNetwork(currentData);
+	   });
+	
+	
+	     // Edge metric switch (Raw/Norm/Z) → reset range + redraw
+	    d3.select('#edgeMetric').on('change', () => {
+	      if (!currentData) return;
+	      setEdgeRangeInputs(currentData.edges);  // Reset eRangeMin/eRangeMax based on the new metric
+	      drawNetwork(currentData);
+	    });
+	
+	    // Edge range input change → redraw
+	    d3.selectAll('#eRangeMin, #eRangeMax').on('change', () => {
+	      if (currentData) drawNetwork(currentData);
+	    });
+	
+	    // 'Filter edges' button → redraw
+	    d3.select('#edgeFilterBtn').on('click', () => {
+	      if (currentData) drawNetwork(currentData);
+	    });
+	    const fitBtn = document.getElementById('fitBtn');
+	    if (fitBtn) fitBtn.onclick = () => fitToView();
+	
+	    const saveSVGBtn = document.getElementById('saveSVGBtn');
+	    if (saveSVGBtn) saveSVGBtn.onclick = () => saveSVG();
+	
+	    const savePDFBtn = document.getElementById('savePDFBtn');
+	    if (savePDFBtn) savePDFBtn.onclick = () => savePDF();
+	
+		     })
+	  .catch(err => console.error('JSON loading failed:', err));
+	
+	
+	
+	function setEdgeRangeInputs(edges) {
+	  const metric = d3.select('#edgeMetric').property('value');
+	  const toNum = v => {
+	    if (Array.isArray(v)) v = v[0];
+	    const n = +v;
+	    return Number.isFinite(n) ? n : NaN;
+	  };
+	  const vals = edges
+	    .map(e => toNum((e && e[metric]) ?? e?.weight))
+	    .filter(Number.isFinite);
+	
+	  if (!vals.length) return;
+	
+	  let emin = d3.min(vals), emax = d3.max(vals);
+	  if (emin === emax) {
+	    const pad = Math.max(1e-6, Math.abs(emin) * 0.01 || 0.01);
+	    emin -= pad; emax += pad;
+	  }
+	  d3.select('#eRangeMin').property('value', emin.toFixed(3));
+	  d3.select('#eRangeMax').property('value', emax.toFixed(3));
+	}			    
+
+
+    // render the specific communtiy
+  
+   function renderCommunity() {
+    const id   = d3.select('#commSelect').property('value');
+    const dmin = +d3.select('#degMin').property('value');
+    const dmax = +d3.select('#degMax').property('value');
+
+    const raw = window.allCommunities               //inquery via id 
+                .find(d => String(d.comm) === id);
+    if (!raw) { console.warn('community does not exist:', id); return; }
+
+   // filter based on degree
+    const data = {
+      nodes: raw.nodes.filter(n => n.degree >= dmin && n.degree <= dmax),
+      edges: raw.edges.filter(e =>
+        raw.nodes.some(n => n.id === e.source && n.degree >= dmin && n.degree <= dmax) &&
+        raw.nodes.some(n => n.id === e.target && n.degree >= dmin && n.degree <= dmax))
+   };
+
+    currentData = data;
+    updateValueRangeInputs(data.nodes);
+    renderStageLegend();
+    setEdgeRangeInputs(data.edges);		      
+    drawNetwork(data);    
+}
+
+
+
+
+    // Draw the network with automatic scaling
+    function getValueRange(nodes, omicsType) {
+      const metric = omicsMetric[omicsType] || 'raw';
+
+      const suffix = (omicsType === 'snv')
+        ? 'vals'
+        : (metric === 'zscore'
+            ? 'z'
+            : metric === 'norm'
+              ? 'norm'
+              : 'vals');
+
+      const key = `${omicsType}_${suffix}`;
+      let allVals = [];
+      nodes.forEach(n => {
+        const vals = n[key];
+        if (Array.isArray(vals)) {
+          allVals = allVals.concat(
+            vals.filter(v => typeof v === 'number' && !isNaN(v))
+          );
+        }
+      });
+      const min = d3.min(allVals);
+      const max = d3.max(allVals);
+      return [min, 0, max];
+    }
+
+    function updateValueRangeInputs(nodes) {
+      const omicsType = d3.select('#omicsType').property('value');
+      const [vmin, vzero, vmax] = getValueRange(nodes, omicsType);
+
+      if (omicsType === 'snv') {
+        d3.select('#rangeMin').property('value', 0);
+        d3.select('#rangeMax').property('value', 1);
+        return;
+      }
+
+      d3.select('#rangeMin').property('value', vmin.toFixed(2));
+      d3.select('#rangeMax').property('value', vmax.toFixed(2));
+
+      // 给当前 omics 更新颜色 scale
+      const colorScale = d3.scaleLinear()
+        .domain([vmin, vzero, vmax])
+        .range([
+          d3.select(`#${omicsType}Neg`).property('value'),
+          d3.select(`#${omicsType}Zero`).property('value'),
+          d3.select(`#${omicsType}Pos`).property('value')
+        ]);
+      colorConfig[omicsType] = colorScale;
+    }
+
+    
+// add listener to monitor the change
+    // 当切换 Data1/2/3/4 时：同步该 Data 的 dataType，并重绘
+    d3.select('#omicsType').on('change', () => {
+      const omicsType = d3.select('#omicsType').property('value');  // exp/mty/snv/cnv
+      const metric = omicsMetric[omicsType] || 'raw';
+
+      // 把 Data Norm 下拉同步成这个 DataX 自己的设置
+      d3.select('#dataType').property('value', metric);
+
+      if (currentData) {
+        updateValueRangeInputs(currentData.nodes);
+        drawNetwork(currentData);
+      }
+    });
+
+    // 当修改 Data Norm（Raw/Norm/Z-score）时：只影响当前选中的 DataX
+    d3.select('#dataType').on('change', () => {
+      const omicsType = d3.select('#omicsType').property('value');       // 当前 DataX
+      const metric = d3.select('#dataType').property('value');           // raw / norm / zscore
+
+      // 只改这个 omics 的模式，其它保持原样
+      omicsMetric[omicsType] = metric;
+
+      if (currentData) {
+        updateValueRangeInputs(currentData.nodes);
+        drawNetwork(currentData);
+      }
+    });
+  
+  
+  
+function drawNetwork(data) {
+
+
+      getColorScales(); 
+
+      function getId(v) {
+        if (Array.isArray(v)) return getId(v[0]);
+        if (typeof v === 'object' && v !== null) return getId(v.id);
+        return String(v);
+      }
+
+      // 当前选中的 DataX（exp/mty/snv/cnv）
+      const omicsType = d3.select('#omicsType').property('value');
+      // 这个 DataX 自己的 metric（raw/norm/zscore）
+      const metricForSelected = omicsMetric[omicsType] || 'raw';
+
+      const rmin = +d3.select('#rangeMin').property('value');
+      const rmax = +d3.select('#rangeMax').property('value');
+
+      // 用当前 DataX + 自己的 metric 来控制高亮
+      data.nodes.forEach(n => {
+        const suffix = omicsType === 'snv'
+          ? 'vals'
+          : (metricForSelected === 'zscore'
+              ? 'z'
+              : metricForSelected === 'norm'
+                ? 'norm'
+                : 'vals');
+        const key = `${omicsType}_${suffix}`;
+        const vals = n[key];
+        n._highlight = Array.isArray(vals) && vals.some(v => v >= rmin && v <= rmax);
+      });
+/////////////////////////////////////////////////////////
+  // initialize SVG
+    const svg = d3.select('#networkViz');
+    svg.selectAll('*').remove();
+    svg.append('defs').append('marker')
+    .attr('id', 'arrow')
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 3) // pointing to the central
+    .attr('refY', 0)
+    .attr('markerUnits', 'strokeWidth')
+    .attr('markerWidth', 3)
+    .attr('markerHeight', 3)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-5L10,0L0,5')
+    .attr('fill', 'context-stroke'); // Auto-inherit line color
+    const container = svg.append("g");
+
+   // Initial offset transform (shift right 600, down 100)
+
+     let currentTransform = d3.zoomIdentity; 
+
+
+  const zoom = d3.zoom()
+  .filter(e =>
+    e.type === "mousedown"   ||   // mouse drag down
+    e.type === "mousemove"   ||   // mouse dragging
+    e.type === "touchstart"       // touch dragging
+  )
+  .on("zoom", e => {
+    currentTransform = e.transform;
+    container.attr("transform", currentTransform);
+  });
+
+// Bind zoom and remove any residual wheel listeners (double safety)）
+svg.call(zoom)
+   .call(zoom.transform, currentTransform)
+   .on("wheel.zoom", null);      // wheel event fully unbound
+
+// Apply zoom behavior and set initial position
+// zoom out button
+  d3.select("#zoomIn").on("click", () => {
+    currentTransform = currentTransform.scale(1.2);
+    svg.transition().duration(300).call(zoom.transform, currentTransform);
+  });
+
+  d3.select("#zoomOut").on("click", () => {
+    currentTransform = currentTransform.scale(0.8);
+    svg.transition().duration(300).call(zoom.transform, currentTransform);
+  });
+  const width = +svg.attr("width") || 1000;
+  const height = +svg.attr("height") || 700;
+
+  //  Clone nodes/edges and filter out dangling edges
+  const nodes = data.nodes.map(d => Object.assign({}, d));
+  const nodeIds = new Set(nodes.map(d => String(Array.isArray(d.id) ? d.id[0] : d.id)));
+  const nodeById = new Map(nodes.map(d => [String(Array.isArray(d.id) ? d.id[0] : d.id), d]));
+  console.log('nodeById keys:', Array.from(nodeById.keys()));
+  const firstId = Array.isArray(nodes[0].id) ? nodes[0].id[0] : nodes[0].id;
+  console.log('nodeById.get(第一个节点id):', nodeById.get(firstId));
+  
+  
+  const id2 = Array.isArray(nodes[1].id) ? nodes[1].id[0] : nodes[1].id;
+  console.log('nodeById.get(第二个节点id):', nodeById.get(id2));
+
+  const id6 = Array.isArray(nodes[5].id) ? nodes[5].id[0] : nodes[5].id;
+  console.log('nodeById.get(第六个节点id):', nodeById.get(id6));
+  
+  console.log('nodeById.get(第二个节点id):', nodes[1].id[0]);
+  console.log('nodeById.get(第6个节点id):',  nodes[5].id);
+  
+  const edgeMetric = d3.select('#edgeMetric').property('value'); // 'w_raw' | 'w_norm' | 'w_z'
+  let eMin = +d3.select('#eRangeMin').property('value');
+  let eMax = +d3.select('#eRangeMax').property('value');
+
+  // If user swaps min/max values → exchange them
+  if (Number.isFinite(eMin) && Number.isFinite(eMax) && eMin > eMax) [eMin, eMax] = [eMax, eMin];
+
+  const toNum = v => {
+    if (Array.isArray(v)) v = v[0];
+     const n = +v;
+    return Number.isFinite(n) ? n : NaN;
+ };
+
+ const edges = data.edges
+  .map(e => {
+    const sourceId = getId(e.source);
+    const targetId = getId(e.target);
+    // Get selected metric first (w_raw / w_norm / w_z); fallback to weight; if unavailable, use 0
+    const metW = toNum(e?.[edgeMetric]);
+    const rawW = toNum(e?.weight);
+    const safeW = Number.isFinite(metW) ? metW : (Number.isFinite(rawW) ? rawW : 0);
+
+    return {
+      ...e,
+      source: sourceId,
+      target: targetId,
+      weight: Number.isFinite(rawW) ? rawW : 0,   // save original weight
+      _w: safeW,                                   // choose metric and draw based on the metric
+      _inRange: (safeW >= eMin && safeW <= eMax)
+    };
+  })
+  .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
+		  
+    console.log("标准化后的边 edge 示例：", edges.slice(0, 5));
+    console.log('edges 中第一个 source:', edges[0].source);
+    console.log('能否找到这个节点:', nodeById.get(edges[0].source));
+
+
+const C_NEG  = d3.select('#edgeNeg').property('value')  || '#0000FF';
+const C_ZERO = d3.select('#edgeZero').property('value') || '#FFFFFF'; // 0=white
+const C_POS  = d3.select('#edgePos').property('value')  || '#FF0000';
+
+const negScale = d3.scaleLinear().domain([eMin, 0]).range([C_NEG,  C_ZERO]).clamp(true);
+const posScale = d3.scaleLinear().domain([0,    eMax]).range([C_ZERO, C_POS]).clamp(true);
+
+function edgeColor(d) {
+  if (!(d._highlight && d._inRange)) return '#CCCCCC';
+  const v = d._w;
+  if (!Number.isFinite(v)) return '#CCCCCC';
+  if (v === 0) return C_ZERO;
+  return v < 0 ? negScale(v) : posScale(v);
+}
+
+
+const maxAbsW = d3.max(edges, e => Math.abs(e._w)) || 1;
+const sw = v => Math.max(0.5, 1.5 * Math.sqrt(Math.abs(v || 0)));
+const CONST_SW = Math.max(2.5, sw(maxAbsW));
+
+
+
+  const pairCount = new Map();
+  edges.forEach(e => {
+    const key = [e.source, e.target].sort().join('|');
+    //const key = `${e.source}|${e.target}`;   //direction edge
+    const cnt = (pairCount.get(key) || 0) + 1;
+    pairCount.set(key, cnt);
+    e._parallel = cnt;
+  });
+  edges.forEach(e => {
+    const s = nodeById.get(e.source);
+    const t = nodeById.get(e.target);
+    e._highlight = s && t && s._highlight && t._highlight;
+  });
+  const straight = edges.filter(d => d._parallel === 1);
+  const curved = edges.filter(d => d._parallel > 1);
+
+  //  Force simulation
+  // Preserve initial layout if historical positions exist
+  nodes.forEach((d, i) => {
+  // If x/y are [values], extract numeric values
+  if (Array.isArray(d.x) && d.x.length === 1) {
+    d.x = d.x[0];
+  }
+  if (Array.isArray(d.y) && d.y.length === 1) {
+    d.y = d.y[0];
+  }
+
+  // Type check & fix: if not a number or NaN → use default circular layout
+  if (typeof d.x !== 'number' || isNaN(d.x)) {
+    d.x = width / 2 + 100 * Math.cos(2 * Math.PI * i / nodes.length);
+  }
+  if (typeof d.y !== 'number' || isNaN(d.y)) {
+    d.y = height / 2 + 100 * Math.sin(2 * Math.PI * i / nodes.length);
+  }
+
+
+  console.log(`第 ${i + 1} 个节点:`, d.id, 'x =', d.x, 'y =', d.y); 
+ });
+
+
+
+  // Dragging
+  function drag(sim) {
+    function dragstarted(event, d) {
+      if (!event.active) sim.alphaTarget(0.5).restart();
+      d.fx = d.x; d.fy = d.y;
+    }
+    function dragged(event, d) {
+      d.fx = event.x; d.fy = event.y;
+    }
+    function dragended(event, d) {
+      sim.alphaTarget(0);
+    }
+    return d3.drag()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended);
+  }
+
+ 
+
+const edgeSelStraight = container.selectAll('line.edge')
+  .data(straight)
+  .enter().append('line')
+  .attr('class', 'edge')
+  .attr('stroke-width', CONST_SW)       // Unify line width
+  .attr('stroke', d => edgeColor(d))    // Gradient edge color
+  .attr('opacity', d => (d._highlight && d._inRange) ? 1 : 0.2)
+  .attr('marker-end', 'url(#arrow)');
+
+const edgeSelCurved = container.selectAll('path.edge')
+  .data(curved)
+  .enter().append('path')
+  .attr('class', 'edge')
+  .attr('fill', 'none')
+  .attr('stroke-width', CONST_SW)       // Unify line width
+  .attr('stroke', d => edgeColor(d))    // Gradient edge color
+  .attr('opacity', d => (d._highlight && d._inRange) ? 1 : 0.2)
+  .attr('marker-end', 'url(#arrow)');
+ 
+
+  const simulation = d3.forceSimulation(nodes)
+    .force('link',   d3.forceLink(edges).id(d => getId(d.id)).distance(100))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(width/2, height/2))
+    .alphaDecay(0.05)
+    .velocityDecay(0.9)
+    .alphaMin(0.001)
+    .on('tick', ticked);
+
+  if (!nodes.length) { 
+    d3.select('#networkViz').selectAll('*').remove();
+    return;
+  }
+  // Node groups + multi-ring charts + dragging
+  const barW = 4, gap = 2;
+  const sampleCount = nodes[0].exp_vals.length, angleStep = 2 * Math.PI / sampleCount;
+  const nodeSel = container.selectAll('g.node')
+    .data(nodes)
+    .enter().append('g')
+    .attr('class', 'node')
+    .call(drag(simulation)); // Drag interaction
+    for (let i = 0; i < 4; ++i) simulation.tick();
+    simulation.stop();
+    ticked();
+    fitToView();
+    lastLayout = nodes.map(n => ({
+     id: String(Array.isArray(n.id) ? n.id[0] : n.id),
+     x: n.x,
+     y: n.y
+    }));
+
+      nodeSel.each(function(nodeDatum) {
+        const omicsTypeSelected = d3.select('#omicsType').property('value');
+        const rmin = +d3.select('#rangeMin').property('value');
+        const rmax = +d3.select('#rangeMax').property('value');
+
+        const barW = 4, gap = 2;
+        const sampleCount = nodeDatum.exp_vals.length;
+        const angleStep = 2 * Math.PI / sampleCount;
+
+        const ringDefs = [
+          { type: 'snv',  inner: 0 },
+          { type: 'cnv',  inner: barW + gap },
+          { type: 'mty',  inner: 2 * (barW + gap) },
+          { type: 'exp',  inner: 3 * (barW + gap) },
+          { type: 'stage',inner: 4 * (barW + gap) }
+        ];
+
+        // 每个 ring 自己看自己是 raw/norm/zscore
+        const rings = ringDefs.map(r => {
+          if (r.type === 'stage') {
+            return {
+              ...r,
+              vals: nodeDatum.stage_idx,
+              scale: null
+            };
+          }
+
+          const metric = omicsMetric[r.type] || 'raw';
+          const suffix = metric === 'zscore' ? '_z'
+                        : metric === 'norm'  ? '_norm'
+                        : '_vals';
+
+          return {
+            ...r,
+            metric,
+            vals: nodeDatum[r.type + suffix],
+            scale: colorConfig[r.type]
+          };
+        }).filter(r => Array.isArray(r.vals));
+
+        const g = d3.select(this);
+
+        rings.forEach(ring => {
+          const isSelectedOmics = ring.type === omicsTypeSelected;
+          const isStage = ring.type === 'stage';
+
+          const slices = ring.vals.map((v, i) => ({
+            start: i * angleStep,
+            end:   (i + 1) * angleStep,
+            value: v
+          }));
+
+          g.selectAll(`path.r${ring.inner}`)
+            .data(slices).enter().append('path')
+            .attr('d', s => d3.arc()({
+              innerRadius: ring.inner,
+              outerRadius: ring.inner + barW,
+              startAngle: s.start,
+              endAngle:   s.end
+            }))
+            .attr('fill', s => {
+              if (s.value == null || isNaN(s.value)) return 'transparent';
+              if (!isStage && isSelectedOmics && (s.value < rmin || s.value > rmax))
+                return '#CCCCCC';
+              return isStage ? getStageColorByIndex(s.value) : ring.scale(s.value);
+            })
+            .attr('fill-opacity', s => {
+              if (isStage) return (s.value == null || isNaN(s.value)) ? 0 : 1;
+              if (!isSelectedOmics) return 1;
+              return (s.value >= rmin && s.value <= rmax) ? 1 : 0.2;
+            })
+            .attr('stroke-width', isStage ? 0 : (isSelectedOmics ? 0.5 : 0))
+            .attr('stroke', s => {
+              if (isStage) return 'none';
+              if (!isSelectedOmics) return 'none';
+              return (s.value >= rmin && s.value <= rmax)
+                ? ring.scale(s.value)
+                : '#CCCCCC';
+            });
+        });
+
+        g.append('text')
+          .text(nodeDatum.id)
+          .attr('y', -((barW + gap) * rings.length) - 4)
+          .attr('text-anchor', 'middle')
+          .style('font-size', '10px')
+          .style('pointer-events', 'none');
+      });
+
+
+  // Tick callback: refresh coordinates by force simulation
+  function ticked() {
+    // Refresh straight edges
+	 edgeSelStraight
+	  .attr('x1', d => {
+	    const x = nodeById.get(getId(d.source))?.x ?? 0;
+	    return x;
+	  })
+	  .attr('y1', d => nodeById.get(getId(d.source))?.y ?? 0)
+	  .attr('x2', d => nodeById.get(getId(d.target))?.x ?? 0)
+	  .attr('y2', d => nodeById.get(getId(d.target))?.y ?? 0);
+	
+	 edgeSelCurved
+	  .attr('d', d => {
+	    const s = nodeById.get(getId(d.source));
+	    const t = nodeById.get(getId(d.target));
+	    if (!s || !t) {
+	      console.warn(`❌ source or target can not be found:`, d.source, d.target);
+	      return '';
+	    }
+	    const mx = (s.x + t.x) / 2;
+	    const my = (s.y + t.y) / 2;
+	    const offset = 25;
+	    const dir = (d._parallel % 2) ? -1 : +1;
+	    const cx_ctrl = mx;
+	    const cy_ctrl = my + dir * offset;
+	    return `M${s.x},${s.y} Q${cx_ctrl},${cy_ctrl} ${t.x},${t.y}`;
+	  });
+
+    // refesh group
+    nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+  }
+
+}
+
+
+
+
+  
+ 
+d3.select('#filterBtn').on('click', () => {
+  if (typeof currentData !== 'undefined' && currentData) {
+    drawNetwork(currentData);
+  } else {
+    console.warn('The data is not loaded completely，filter function can not continue');
+  }
+});  
+
+// Compute bounding box of container <g> and add padding
+function getContentBBox(padding = 20) {
+  const svgNode = document.getElementById('networkViz');
+  const container = svgNode.querySelector('g'); // <g> is created in drawNetwork 
+  if (!container) return null;
+  const b = container.getBBox();
+  return {
+    x: b.x - padding,
+    y: b.y - padding,
+    width:  b.width  + 2 * padding,
+    height: b.height + 2 * padding,
+    svg: svgNode,
+    container
+  };
+}
+
+// One-click fit: bring all nodes into view (auto-scale to current viewport)
+function fitToView() {
+  const info = getContentBBox(40);
+  if (!info) return;
+  const svg = d3.select(info.svg);
+  const width  = +svg.attr('width')  || 1000;
+  const height = +svg.attr('height') || 700;
+
+  const scale = Math.min(width / info.width, height / info.height) * 0.95;
+  const tx = width  / 2 - scale * (info.x + info.width  / 2);
+  const ty = height / 2 - scale * (info.y + info.height / 2);
+
+ // const zoom = d3.zoom().on('zoom', e => {
+   // d3.select(info.container).attr('transform', e.transform);
+ // });
+ // svg.call(zoom);
+ // svg.transition().duration(300)
+  //   .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+ const t = d3.zoomIdentity.translate(tx, ty).scale(scale);
+
+ if (window.zoomBehavior) {
+  svg.transition().duration(300)
+     .call(window.zoomBehavior.transform, t)
+     .selection()
+     .on('wheel.zoom', null)      
+     .on('dblclick.zoom', null);
+ } else {
+   d3.select(info.container).attr('transform', `translate(${tx},${ty}) scale(${scale})`);
+ }
+
+}
+
+
+function snapshotSVG() {
+  const info = getContentBBox(20);
+  if (!info) return null;
+  const svgNode = info.svg.cloneNode(true);
+  svgNode.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgNode.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  svgNode.setAttribute('viewBox', `${info.x} ${info.y} ${info.width} ${info.height}`);
+  svgNode.setAttribute('width',  Math.round(info.width));
+  svgNode.setAttribute('height', Math.round(info.height));
+  return svgNode;
+}
+
+// download SVG
+function saveSVG() {
+  const svgNode = snapshotSVG();
+  if (!svgNode) return;
+  const ser = new XMLSerializer();
+  const svgStr = ser.serializeToString(svgNode);
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const id = d3.select('#commSelect').property('value') || 'community';
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${id}.svg`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+ async function savePDF() {
+  const svgNode = snapshotSVG();
+  if (!svgNode) return;
+
+  const w = svgNode.viewBox?.baseVal?.width  || svgNode.width.baseVal.value;
+  const h = svgNode.viewBox?.baseVal?.height || svgNode.height.baseVal.value;
+
+  const PDFCtor = (window.jsPDF || (window.jspdf && window.jspdf.jsPDF));
+  if (!PDFCtor) { alert('jsPDF is nor be loaded'); return; }
+
+  const pdf = new PDFCtor({ orientation: w > h ? 'l' : 'p', unit: 'pt', format: [w, h] });
+
+  if (typeof pdf.svg === 'function') {
+    await pdf.svg(svgNode, { x:0, y:0, width:w, height:h, useCSS:true, preserveAspectRatio:'xMidYMid meet' });
+  } else if (typeof window.svg2pdf === 'function') {
+    window.svg2pdf(svgNode, pdf, { xOffset:0, yOffset:0, scale:1, useCSS:true });
+  } else {
+    const CanvgCtor = (window.canvg && (window.canvg.Canvg || window.canvg.default)) || window.Canvg || window.canvg;
+    if (!CanvgCtor) { alert('svg2pdf/canvg are not ready'); return; }
+
+    const SCALE = 3;
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(w * SCALE);
+    canvas.height = Math.round(h * SCALE);
+    const ctx = canvas.getContext('2d'); ctx.scale(SCALE, SCALE);
+
+    const svgString = new XMLSerializer().serializeToString(svgNode);
+    const v = (typeof CanvgCtor.from === 'function')
+      ? await CanvgCtor.from(ctx, svgString, { ignoreMouse:true, ignoreAnimation:true, enableRedraw:false })
+      : await CanvgCtor.fromString(ctx, svgString, { ignoreMouse:true, ignoreAnimation:true, enableRedraw:false });
+    await v.render();
+
+    const img = canvas.toDataURL('image/png');
+    pdf.addImage(img, 'PNG', 0, 0, w, h);
+  }
+
+  const id = d3.select('#commSelect').property('value') || 'community';
+  pdf.save(`${id}.pdf`);
+} 
+
+//build session
+function buildSessionJSON() {
+  const sid = new URLSearchParams(location.search).get('sid') || '';
+
+  const state = {
+    sid,
+    community: d3.select('#commSelect').property('value'),
+    degreeRange: {
+      min: +d3.select('#degMin').property('value'),
+      max: +d3.select('#degMax').property('value')
+    },
+    dataFilter: {
+      dataType:  d3.select('#dataType').property('value'),
+      omicsType: d3.select('#omicsType').property('value'),
+      valueRange: {
+        min: +d3.select('#rangeMin').property('value'),
+        max: +d3.select('#rangeMax').property('value')
+      }
+    },
+    edgeFilter: {
+      metric: d3.select('#edgeMetric').property('value'),
+      range: {
+        min: +d3.select('#eRangeMin').property('value'),
+        max: +d3.select('#eRangeMax').property('value')
+      }
+    },
+    colors: {
+      exp: { neg: d3.select('#expNeg').property('value'), zero: d3.select('#expZero').property('value'), pos: d3.select('#expPos').property('value') },
+      mty: { neg: d3.select('#mtyNeg').property('value'), zero: d3.select('#mtyZero').property('value'), pos: d3.select('#mtyPos').property('value') },
+      snv: { v0: d3.select('#snv0').property('value'), v1: d3.select('#snv1').property('value') },
+      cnv: { neg: d3.select('#cnvNeg').property('value'), zero: d3.select('#cnvZero').property('value'), pos: d3.select('#cnvPos').property('value') },
+      edge:{ neg: d3.select('#edgeNeg').property('value'), zero: d3.select('#edgeZero').property('value'), pos: d3.select('#edgePos').property('value') }
+    },
+    // display the subset of data
+    data: (typeof currentData !== 'undefined' && currentData) ? {
+      nodes: currentData.nodes,
+      edges: currentData.edges
+    } : null,
+
+    //the latest point coordinate from last time
+    layout: lastLayout,
+
+    // json path with ssession id
+    source: sid ? `uploads/${sid}/community_map_top100.json` : 'uploads/community_map_top100.json',
+
+    savedAt: new Date().toISOString()
+  };
+  return state;
+}
+
+/* trigger the downloading*/
+function saveJSON() {
+  const state = buildSessionJSON();
+  const text  = JSON.stringify(state, null, 2);
+  const blob  = new Blob([text], { type: 'application/json;charset=utf-8' });
+  const url   = URL.createObjectURL(blob);
+
+  const sid  = state.sid || 'nosid';
+  const comm = state.community || 'community';
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `session_${sid}_${comm}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* =====bind the button ===== */
+const saveJSONBtn = document.getElementById('saveJSONBtn');
+if (saveJSONBtn) saveJSONBtn.onclick = () => saveJSON();
+	    
+
+
+ })();
+  </script>
+</body>
+</html>
