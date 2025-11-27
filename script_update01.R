@@ -465,7 +465,7 @@ community_map_list <- parLapply(cl, community_ids, function(comm) {
 
     w_min <- min(w_raw_vec, na.rm = TRUE)
     w_max <- max(w_raw_vec, na.rm = TRUE)
-    w_norm_vec <- -1 + 2 * (w_raw_vec - w_min) / (w_max - w_min)
+    w_norm_vec <- (w_raw_vec - w_min) / (w_max - w_min)
   } else {
     w_norm_vec <- rep(0, length(w_raw_vec))
   }
