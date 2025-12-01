@@ -667,31 +667,45 @@ data.edges.forEach(e => {
   const safeW = Number.isFinite(metW) ? metW : (Number.isFinite(rawW) ? rawW : 0);
 
   const existed = edgeMap.get(key);
-  if (!existed) {
-    // 第一次见到这对节点
+ if (!existed) {
     edgeMap.set(key, {
-      ...e,
       source: s,
       target: t,
-      weight: Number.isFinite(rawW) ? rawW : 0,  // 保留一个原始 weight
-      _w: safeW                                  // 当前 metric 的值，用来着色/过滤
+      rawSum: Number.isFinite(rawW) ? rawW : 0,
+      metSum: Number.isFinite(safeW) ? safeW : 0,
+      count: 1,
+      interact_id: e.interact_id
     });
   } else {
-    // 已经有一条 (A,B) 了，再遇到反向或者重复的，就做个平均（你也可以换成 sum / max）
-    if (Number.isFinite(rawW)) {
-      existed.weight = (existed.weight + rawW) / 2;
-    }
-    if (Number.isFinite(safeW)) {
-      existed._w = (existed._w + safeW) / 2;
-    }
+    if (Number.isFinite(rawW)) existed.rawSum += rawW;
+    if (Number.isFinite(safeW)) existed.metSum += safeW;
+    existed.count += 1;
+
+    // 若多条边 interact_id 不一致，你可以选择保留第一个，也可扩展
   }
 });
 
 // 最终 edges：一对节点只剩一条边
-const edges = Array.from(edgeMap.values()).map(e => ({
-  ...e,
-  _inRange: (e._w >= eMin && e._w <= eMax)
-}));
+//const edges = Array.from(edgeMap.values()).map(e => ({
+//  ...e,
+//  _inRange: (e._w >= eMin && e._w <= eMax)
+//}));
+
+
+  const edges = Array.from(edgeMap.values()).map(e => {
+  const avgRaw = e.rawSum / e.count;
+  const avgMet = e.metSum / e.count;
+
+  return {
+    source: e.source,
+    target: e.target,
+    weight: avgRaw,
+    _w: avgMet,
+    interact_id: e.interact_id,
+    _inRange: avgMet >= eMin && avgMet <= eMax
+  };
+});
+
 const maxWeight = d3.max(edges, d => Math.abs(d._w) || 0.01);
 // 如果勾选了 interact_id 上色
 const useInteractColor = d3.select('#useInteract')?.property('checked');
