@@ -221,6 +221,7 @@
       .attr('width',  viewWidth)
       .attr('height', viewHeight);
     const container = svg.append('g');
+	const scrollContainer = document.getElementById('networkContainer');
 	const zoom = d3.zoom()
      .scaleExtent([0.2, 8]) // 自己按需要调缩放范围
      .on('zoom', (event) => {
@@ -235,6 +236,45 @@
       .on('mousedown.zoom', null)   // 禁止拖动画布
       .on('touchstart.zoom', null); // 禁止触摸缩放
 	window.zoomBehavior = zoom;
+	// === 鼠标按住拖动：平移整个视图（其实是改外层 div 的滚动条） ===
+if (scrollContainer) {
+  let isPanning = false;
+  let startX = 0;
+  let startY = 0;
+  let startScrollLeft = 0;
+  let startScrollTop = 0;
+
+  const svgNode = document.getElementById('networkViz');
+
+  svgNode.addEventListener('mousedown', (e) => {
+    // 只响应左键
+    if (e.button !== 0) return;
+    isPanning = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startScrollLeft = scrollContainer.scrollLeft;
+    startScrollTop = scrollContainer.scrollTop;
+    svgNode.style.cursor = 'grabbing';
+    e.preventDefault();  // 阻止选择文本等默认行为
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    // 鼠标往右拖，视图往右走 => scrollLeft 减 dx
+    scrollContainer.scrollLeft = startScrollLeft - dx;
+    scrollContainer.scrollTop  = startScrollTop  - dy;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!isPanning) return;
+    isPanning = false;
+    const svgNode = document.getElementById('networkViz');
+    if (svgNode) svgNode.style.cursor = 'default';
+  });
+}
+
     let colorConfig = {};
 	const INTERACT_COLORS = [
       '#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd',
