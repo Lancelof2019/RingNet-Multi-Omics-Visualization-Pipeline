@@ -143,51 +143,73 @@
     background:rgba(0,102,204,0.08);
     color:#004080;
   }
+  .main-title{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1rem;
+  }
+
+ .title-svg{
+  width: 25%;
+  max-width: 170px;
+  height: auto;
+  display: block;
+  }
   </style>
 </head>
 <body>
-<h1 class="main-title">RingNet visualization</h1>
-<h2>Upload CSV Files</h2>
+<div class="main-title">
+  <img
+    src="./picture_logo/ringnet2.svg"
+    alt="RingNet visualization"
+    class="title-svg"
+  >
 
-<form id="uploadForm" enctype="multipart/form-data" method="POST" action="upload.php">
+</div>
+<h2>Upload CSV Files</h2>
+<h7>The Template can be used when the data belongs to gene - gene or patients - patients<br>
+When the single cell data is uploaded,please use Single Cell template</h7>
+
+<form id="uploadForm" enctype="multipart/form-data" method="POST" action="/cmt_figures/upload.php">
   <!-- 两个必选 -->
   <label class="file-label required"><span>Graph Edges (.csv)</span>
     <input type="file" name="graph_edges" accept=".csv" required>
-    <a href="examples/example_graph_edges.csv" download class="template-link">Template_download</a>
-    <a href="examples/singlecell_edges.csv" download class="template-link" style="margin-left:10px;">or Single_Cell_Template</a>
+    <a href="examples/example_graph_edges.csv" download class="template-link">Template download</a>
+    <a href="examples/singlecell_edges.csv" download class="template-link" style="margin-left:10px;">Single cell template</a>
   </label>
   <label class="file-label required"><span>Graph Nodes (.csv)</span>
     <input type="file" name="graph_nodes" accept=".csv" required>
-    <a href="examples/example_graph_nodes.csv" download class="template-link">Template_download</a>
-    <a href="examples/singlecell_nodes.csv" download class="template-link" style="margin-left:10px;">or Single_Cell_Template</a>
+    <a href="examples/example_graph_nodes.csv" download class="template-link">Template download</a>
+    <a href="examples/singlecell_nodes.csv" download class="template-link" style="margin-left:10px;">Single cell template</a>
   </label>
   <label class="file-label required"><span>Node Group (.csv)</span>
     <input type="file" name="megList" accept=".csv" required>
-    <a href="examples/example_megList.csv" download class="template-link">Template_download</a>
-    <a href="examples/singlecell_megList.csv" download class="template-link" style="margin-left:10px;">or Single_Cell_Template</a>
+    <a href="examples/example_megList.csv" download class="template-link">Template download</a>
+    <a href="examples/singlecell_megList.csv" download class="template-link" style="margin-left:10px;">Single cell template</a>
   </label>
   <!-- 四选一 -->
   <label class="file-label"><span>Data1 (continuous real value)</span>
     <input type="file" name="gene_expression" accept=".csv,.tsv">
-    <a href="examples/example_gene_expression.csv" download class="template-link">Template_download</a>
-    <a href="examples/singlecell_expression_matrix.csv" download class="template-link" style="margin-left:10px;">or Single_Cell_Template</a>
+    <a href="examples/example_gene_expression.csv" download class="template-link">Template download</a>
+    <a href="examples/singlecell_expression_matrix.csv" download class="template-link" style="margin-left:10px;">Single cell template</a>
   </label>
   <label class="file-label"><span>Data2 (continuous real value)</span>
     <input type="file" name="methylation" accept=".csv,.tsv">
-    <a href="examples/example_methylation.csv" download class="template-link">Template_download</a>
-    <a href="examples/singlecell_expression_matrix.csv" download class="template-link" style="margin-left:10px;">or Single_Cell_Template</a>
+    <a href="examples/example_methylation.csv" download class="template-link">Template download</a>
+    <a href="examples/singlecell_expression_matrix.csv" download class="template-link" style="margin-left:10px;">Single cell template</a>
   </label>
   <label class="file-label"><span>Data3 (integer value)</span>
     <input type="file" name="snv" accept=".csv,.tsv">
-    <a href="examples/example_cnv.csv" download class="template-link">Template_download</a>
+    <a href="examples/example_cnv.csv" download class="template-link">Template download</a>
   </label>
   <label class="file-label"><span>Data4 (integer value)</span>
     <input type="file" name="cnv" accept=".csv,.tsv">
-    <a href="examples/example_snv.csv" download class="template-link">Template_download</a>
+    <a href="examples/example_snv.csv" download class="template-link">Template download</a>
   </label>
   <label class="file-label"><span>Sample Group</span>
     <input type="file" name="stage" accept=".csv,.tsv">
-    <a href="examples/example_stage.csv" download class="template-link">Template_download</a>
+    <a href="examples/example_stage.csv" download class="template-link">Template download</a>
   </label>
   <button type="submit">Upload&nbsp;Files</button>
 </form>
@@ -198,13 +220,13 @@
 </div>
 
 <h2 style="margin-top:2rem;">Or upload an existing JSON session</h2>
-<form id="jsonForm" enctype="multipart/form-data" method="POST" action="upload_json.php">
+<form id="jsonForm" enctype="multipart/form-data" method="POST" action="/cmt_figures/upload_json.php">
   <label class="file-label required">
     <span>Session JSON (community_map_top100.json)</span>
     <input type="file" name="session_json" accept=".json" required>
     <a href="examples/community_map_top100.json" 
        download 
-       class="template-link">Template_download</a>
+       class="template-link">Template download</a>
   </label>
   <button type="submit">Upload&nbsp;JSON&nbsp;Session</button>
 </form>
@@ -251,7 +273,10 @@ form.addEventListener('submit',e=>{
     return;
   }
 
-  fetch('upload.php',{method:'POST',body:new FormData(form)})
+   fetch('/cmt_figures/upload.php', {
+         method: 'POST',
+         body: new FormData(form)
+    })
     .then(async r => {
       const text = await r.text();
       try { return JSON.parse(text); }
@@ -283,11 +308,14 @@ function showErr(msg, btn){
 
 /* 运行 R 脚本 */
 runBtn.addEventListener('click',()=>{
-  if(!uploadedPaths.length || !currentSid) return;
+   if (!currentSid) {
+    output.textContent = 'Error: No session id found. Please upload CSV files first.';
+    return;
+  }
 
   runBtn.disabled = true;
   runBtn.innerHTML = 'Running <span class="spinner"></span>';
-
+  output.textContent = 'R script is running on the server...\nThis may take some time.\n';
   fetch('/cmt_figures/run_r_script.php?sid=' + encodeURIComponent(currentSid))
     .then(async r => {
       const raw = await r.text();
@@ -310,8 +338,8 @@ runBtn.addEventListener('click',()=>{
           const noDirUrl = js.viewerUrlNoDir || (js.viewerUrl + (js.viewerUrl.includes('?') ? '&' : '?') + 'mode=undirected');
           const linksHtml = `
             <div class="result-links">
-              <a href="${js.viewerUrl}" target="_blank" rel="noopener">Open Result Viewer</a>
-              <a href="${noDirUrl}" target="_blank" rel="noopener">Open Result Viewer (no direction)</a>
+              <a href="${js.viewerUrl}" target="_blank" rel="noopener">Open directed network</a>
+              <a href="${noDirUrl}" target="_blank" rel="noopener">Open undirected network</a>
             </div>
           `.replace(/^\s+/gm, '');
           output.insertAdjacentHTML('beforeend', linksHtml);
@@ -343,7 +371,7 @@ if (jsonForm) {
 
     const fd = new FormData(jsonForm);
 
-    fetch('upload_json.php', {
+    fetch('/cmt_figures/upload_json.php', {
       method: 'POST',
       body: fd
     })
@@ -377,8 +405,8 @@ if (jsonForm) {
 
           const linksHtml = `
             <div class="result-links">
-              <a href="${viewerUrl}" target="_blank" rel="noopener">Open Result Viewer</a>
-              <a href="${noDirFinal}" target="_blank" rel="noopener">Open Result Viewer (no direction)</a>
+              <a href="${viewerUrl}" target="_blank" rel="noopener">Open directed network</a>
+              <a href="${noDirFinal}" target="_blank" rel="noopener">Open undirected network</a>
             </div>
           `.replace(/^\s+/gm, '');
           output.insertAdjacentHTML('beforeend', linksHtml);

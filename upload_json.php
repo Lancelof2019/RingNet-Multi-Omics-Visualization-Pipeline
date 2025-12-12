@@ -49,7 +49,7 @@ try {
     }
 
     $viewerUrl   = $baseUrl . '/viewer.html?sid=' . urlencode($sid);
-    $viewerNoDir = $baseUrl . '/nodir.html?sid='  . urlencode($sid);
+    $viewerNoDir = $baseUrl . '/nodir_test.html?sid='  . urlencode($sid);
 
     echo json_encode([
         'success'        => true,
