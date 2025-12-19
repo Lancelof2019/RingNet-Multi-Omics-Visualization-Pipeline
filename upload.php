@@ -41,7 +41,6 @@ if (!mkdir($sessionDir, 0775, true)) {
     exit;
 }
 
-$allKeys = array_merge($required, $optional);
 
 $allKeys = array_merge($required, $optional, $omics_optional);
 $paths   = [];
