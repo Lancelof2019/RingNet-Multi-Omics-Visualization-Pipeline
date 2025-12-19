@@ -7,8 +7,8 @@ if (!is_dir($root) && !mkdir($root, 0775, true)) {
     exit;
 }
 
-$required = ['graph_edges', 'graph_nodes', 'megList'];
-$optional = ['gene_expression', 'methylation', 'snv', 'cnv', 'stage'];
+$required = ['graph_edges', 'graph_nodes'];
+$optional = ['megList','gene_expression', 'methylation', 'snv', 'cnv', 'stage'];
 
 foreach ($required as $key) {
     if (empty($_FILES[$key]) || $_FILES[$key]['error'] !== UPLOAD_ERR_OK) {
