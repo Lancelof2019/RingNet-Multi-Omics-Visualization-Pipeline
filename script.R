@@ -59,9 +59,26 @@ if (!("name" %in% names(nodes_df))) stop("nodes CSV cols：name（nodeID/gene na
 if (!("weight" %in% names(edges_df))) edges_df$weight <- 1
 
 # Read community information from megList
+#a_memb <- read.csv(args[#a_memb <- read.csv(args["mem
+#if#if (!all(c("gene","community") %in% names(a_memb))) stop("megList CSV cols：gene, communit
+#mem_vec <- setNames(as.integer(a_memb$community), a_memb$gene)
 a_memb <- read.csv(args["memb"], check.names = FALSE)
-if (!all(c("gene","community") %in% names(a_memb))) stop("megList CSV cols：gene, community")
-mem_vec <- setNames(as.integer(a_memb$community), a_memb$gene)
+
+# ---- 兼容 gene / name / cellgroup ----
+if ("gene" %in% names(a_memb)) {
+  gene_col <- "gene"
+} else if ("name" %in% names(a_memb)) {
+  gene_col <- "name"
+} else if ("cellgroup" %in% names(a_memb)) {
+  gene_col <- "cellgroup"
+} else {
+  stop("megList CSV must contain gene / name / cellgroup column")
+}
+
+if (!("community" %in% names(a_memb)))
+  stop("megList CSV must contain 'community' column")
+
+mem_vec <- setNames(as.integer(a_memb$community), a_memb[[gene_col]])
 rm(a_memb)
 
 # Reconstruct the entire graph (consistent with the original structure;subsequent steps still use induced_subgraph)
