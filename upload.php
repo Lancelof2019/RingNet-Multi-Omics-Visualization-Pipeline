@@ -7,29 +7,25 @@ if (!is_dir($root) && !mkdir($root, 0775, true)) {
     exit;
 }
 
-$required = ['graph_edges', 'graph_nodes'];
-////$optional = ['megList','gene_expression', 'methylation', 'snv', 'cnv', 'stage'
-$optional = ['megList']; // 结构性文件，可有可无（可由前端自动生成）
-$omics_optional = ['gene_expression', 'methylation', 'snv', 'cnv', 'stage']; // 至少要有一个
+$required = ['graph_edges', 'graph_nodes', 'megList'];
+$optional = ['gene_expression', 'methylation', 'snv', 'cnv', 'stage'];
+
 foreach ($required as $key) {
     if (empty($_FILES[$key]) || $_FILES[$key]['error'] !== UPLOAD_ERR_OK) {
         echo json_encode(['success' => false, 'error' => "$key file missing or error"]);
         exit;
-    }
+}
 }
 
 $opt_ok = false;
-foreach ($omics_optional as $key) {
+foreach ($optional as $key) {
     if (!empty($_FILES[$key]) && $_FILES[$key]['error'] === UPLOAD_ERR_OK) {
         $opt_ok = true;
         break;
     }
 }
 if (!$opt_ok) {
-    echo json_encode([
-        'success' => false,
-        'error'   => 'At least one of gene_expression / methylation / snv / cnv / stage must be provided'
-    ]);
+    echo json_encode(['success' => false, 'error' => 'At least one optional file must be provided']);
     exit;
 }
 
@@ -41,8 +37,7 @@ if (!mkdir($sessionDir, 0775, true)) {
     exit;
 }
 
-
-$allKeys = array_merge($required, $optional, $omics_optional);
+$allKeys = array_merge($required, $optional);
 $paths   = [];
 
 foreach ($allKeys as $key) {
@@ -66,4 +61,3 @@ echo json_encode([
     'sid'     => $sid,
     'paths'   => $paths
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
