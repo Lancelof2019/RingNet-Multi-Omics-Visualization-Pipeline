@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-omics Visualization - G6</title>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@antv/g6@5/dist/g6.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+    #controls {
+      padding: 10px;
+      background: #f7f7f7;
+      border-bottom: 1px solid #ddd;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      min-height: 165px;
+      z-index: 100;
+      overflow-y: auto;
+    }
+    #controls label, #controls div {
+      margin-right: 18px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    #controls input[type="color"] {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    #networkContainer {
+      position: absolute;
+      top: 165px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      background: white;
+    }
+    #networkViz {
+      width: 100%;
+      height: 100%;
+      background: white;
+    }
+    #zoomControls {
+      position: fixed;
+      top: 185px;
+      right: 20px;
+      z-index: 200;
+    }
+    #zoomControls button {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 18px;
+      width: 40px;
+      height: 40px;
+    }
+    .hint {
+      color: #666;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label>
+      Network：
+      <select id="commSelect"></select>
+    </label>
+    <label>
+      Degree Range：
+      <input type="number" id="degMin" value="0" min="0" max="500" style="width:60px;">
+      –
+      <input type="number" id="degMax" value="500" min="0" max="500" style="width:60px;">
+      <button id="fitBtn">Fit</button>
+      <button id="savePNGBtn">Save PNG</button>
+      <button id="saveJSONBtn">Save JSON</button>
+      <span class="hint"></span>
+    </label>
+    <br>
+    <div id="colorPickers" style="margin-top:8px;">
+      <span>Data1：</span>
+      <input type="color" id="expNeg" value="#0000FF" title="Exp Negative" />
+      <input type="color" id="expZero" value="#F7F7F7" title="Exp Zero" />
+      <input type="color" id="expPos" value="#FF0000" title="Exp Positive" />
+      <span style="display:inline-block; width:30px;"></span>
+      <span>Data2：</span>
+      <input type="color" id="mtyNeg" value="#0000FF" title="Mty Negative" />
+      <input type="color" id="mtyZero" value="#F7F7F7" title="Mty Zero" />
+      <input type="color" id="mtyPos" value="#FF0000" title="Mty Positive" />
+      <span style="display:inline-block; width:30px;"></span>
+      <span>Data3：</span>
+      <input type="color" id="cnvNeg" value="#0000FF" title="CNV Negative" />
+      <input type="color" id="cnvZero" value="#F7F7F7" title="CNV Zero" />
+      <input type="color" id="cnvPos" value="#FF0000" title="CNV Positive" />
+      <span style="display:inline-block; width:30px;"></span>
+      <span>Data4：</span>
+      <input type="color" id="snvNeg"  value="#0000FF" title="SNV Negative" />
+      <input type="color" id="snvZero" value="#F7F7F7" title="SNV Zero" />
+      <input type="color" id="snvPos"  value="#FF0000" title="SNV Positive" />
+    </div>
+    <br>
+    <div style="display:inline-block; margin-top:8px; vertical-align:middle;">
+      <label>
+        Data:
+        <select id="omicsType">
+          <option value="exp">Data1</option>
+          <option value="mty">Data2</option>
+          <option value="cnv">Data3</option>
+          <option value="snv">Data4</option>
+        </select>
+      </label>
+      <label>
+        Data Norm:
+        <select id="dataType">
+          <option value="raw">Raw</option>
+          <option value="norm">Min-Max norm</option>
+          <option value="zscore">Z-score</option>
+        </select>
+      </label>
+      <label>
+        Value Range:
+        <input type="number" id="rangeMin" value="-1" step="0.1" style="width:60px;"> -
+        <input type="number" id="rangeMax" value="1" step="0.1" style="width:60px;">
+      </label>
+      <button id="filterBtn">Filter</button>
+
+      <label style="margin-left:12px;">
+        <input type="checkbox" id="top20Toggle">
+        Top 20
+      </label>
+      <span class="hint" title="Per node: select top 20 samples by median(exp, mty).">per node by median(exp,mty)</span>
+    </div>
+    <br>
+    <div class="legend-row" style="margin-top:8px;">
+      <span>Group：</span>
+      <span id="stageLegend" class="legend-inline"></span>
+    </div>
+    <br>
+    <div>
+      <span>Edges：</span>
+      Negative: <input type="color" id="edgeNeg" value="#00FF00" title="Negative weight" />
+      Zero: <input type="color" id="edgeZero" value="#D0D0D0" title="Zero weight" />
+      Positive: <input type="color" id="edgePos" value="#FF00FF" title="Positive Weight" />
+    </div>
+    <br>
+    <div style="margin-top:8px;">
+      <span>Edge Data Norm:</span>
+      <select id="edgeMetric">
+        <option value="w_raw">Raw</option>
+        <option value="w_norm">Min-Max Norm</option>
+        <option value="w_z">Z-score</option>
+      </select>
+      <label style="margin-left:12px;">
+        Range:
+        <input type="number" id="eRangeMin" value="-1" step="0.1" style="width:80px;">
+        –
+        <input type="number" id="eRangeMax" value="1" step="0.1" style="width:80px;">
+      </label>
+      <button id="edgeFilterBtn">Filter edges</button>
+      <label style="margin-left:12px;">
+        <input type="checkbox" id="useInteract">
+        color by interact_id
+      </label>
+    </div>
+  </div>
+
+  <div id="zoomControls">
+    <button id="zoomIn">➕</button>
+    <button id="zoomOut">➖</button>
+  </div>
+
+  <div id="networkContainer">
+    <div id="networkViz"></div>
+  </div>
+
+  <script>
+(function () {
+  const { Graph } = G6;
+
+  let graph = null;
+  let currentData = null;
+  let currentCommId = null;
+  let colorConfig = {};
+  let useInteractMode = false;
+
+  let focusedNodeId = null;
+  let neighborMap = new Map();
+  let spriteDirty = true;
+  let useTop20PerNode = false;
+
+  function invalidateSprites() {
+    spriteDirty = true;
+  }
+
+  function getSessionId() {
+    return new URLSearchParams(location.search).get('sid') || '';
+  }
+
+  function getJsonPath(fileName = 'community_map_top100.json') {
+    const sid = getSessionId();
+    return sid ? `uploads/${sid}/${fileName}` : `uploads/${fileName}`;
+  }
+
+  const omicsMetric = {
+    exp: 'raw',
+    mty: 'raw',
+    snv: 'raw',
+    cnv: 'raw',
+  };
+
+  const INTERACT_COLORS = [
+    '#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd',
+    '#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf',
+    '#393b79','#637939','#8c6d31','#843c39','#7b4173',
+    '#3182bd','#e6550d','#31a354','#756bb1','#636363',
+    '#6baed6','#fd8d3c','#74c476','#9e9ac8','#bdbdbd',
+    '#9ecae1','#fdae6b','#a1d99b','#bcbddc','#d9d9d9'
+  ];
+
+  const DEFAULT_STAGE_COLORS = [
+    '#1f77b4', '#d62728', '#2ca02c', '#ffbf00', '#9467bd', '#ff7f0e'
+  ];
+  const STAGE_IDS = [0, 1, 2, 3, 4, 5];
+  const stageColorMap = new Map(STAGE_IDS.map(i => [i, DEFAULT_STAGE_COLORS[i]]));
+
+  const SPRITE_SIZE = 220;
+  const NODE_SIZE = 122;
+  const CX = SPRITE_SIZE / 2;
+  const CY = SPRITE_SIZE / 2;
+  const RING_W = 10;
+  const GAP = 3;
+
+  const PARALLEL_EDGE_STEP = 22;
+  const OPPOSITE_EDGE_GAP = 16;
+  const SELF_LOOP_STEP = 10;
+
+  const RING_LAYOUT = [
+    { type: 'snv',  inner: 1 * (RING_W + GAP) },
+    { type: 'cnv',  inner: 2 * (RING_W + GAP) },
+    { type: 'mty',  inner: 3 * (RING_W + GAP) },
+    { type: 'exp',  inner: 4 * (RING_W + GAP) },
+    { type: 'stage',inner: 5 * (RING_W + GAP) },
+  ];
+
+  const OUTER_RING_RADIUS = RING_LAYOUT[RING_LAYOUT.length - 1].inner + RING_W;
+
+  // =========================
+  // 关键修改 1：沿圆环生成密集 ports
+  // 让边贴着圆环连接，而不是连到奇怪位置
+  // =========================
+  const PORT_COUNT = 90;
+
+  // 这里是“贴边”关键参数
+  // 数值越大越往外，越小越往里
+  // 你要的是尽量少空白，所以放在圆环外缘稍微里面一点
+  const PORT_RADIUS = OUTER_RING_RADIUS - 1 ;
+
+  const NODE_PORTS_META = Array.from({ length: PORT_COUNT }, (_, i) => {
+    const angle = -Math.PI / 2 + i * (2 * Math.PI / PORT_COUNT);
+    const x = (CX + PORT_RADIUS * Math.cos(angle)) / SPRITE_SIZE;
+    const y = (CY + PORT_RADIUS * Math.sin(angle)) / SPRITE_SIZE;
+    return {
+      key: `p${i}`,
+      angle,
+      placement: [x, y],
+    };
+  });
+
+  const NODE_PORTS = NODE_PORTS_META.map(({ key, placement }) => ({ key, placement }));
+
+  function getNodePorts() {
+    return NODE_PORTS;
+  }
+
+  function angleDistance(a, b) {
+    return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  }
+
+  function getNearestPortKeyByAngle(angle) {
+    let bestKey = NODE_PORTS_META[0].key;
+    let bestDist = Infinity;
+    NODE_PORTS_META.forEach(p => {
+      const d = angleDistance(angle, p.angle);
+      if (d < bestDist) {
+        bestDist = d;
+        bestKey = p.key;
+      }
+    });
+    return bestKey;
+  }
+
+  function getId(v) {
+    if (Array.isArray(v)) return getId(v[0]);
+    if (typeof v === 'object' && v !== null) {
+      if ('id' in v && v.id != null) return getId(v.id);
+      if ('gene' in v && v.gene != null) return String(v.gene);
+      return '';
+    }
+    return String(v ?? '');
+  }
+
+  function endpointId(v) {
+    if (Array.isArray(v)) return endpointId(v[0]);
+    if (v && typeof v === 'object') {
+      if (v.id != null) return String(v.id);
+      if (v.gene != null) return String(v.gene);
+      return '';
+    }
+    if (v == null) return '';
+    return String(v);
+  }
+
+  function toNum(v) {
+    if (Array.isArray(v)) v = v[0];
+    const n = +v;
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function createOffscreen(size) {
+    if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(size, size);
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    return canvas;
+  }
+
+  function canvasToDataURL(canvas) {
+    if (typeof canvas.convertToBlob === 'function') {
+      const copy = document.createElement('canvas');
+      copy.width = canvas.width;
+      copy.height = canvas.height;
+      const ctx = copy.getContext('2d');
+      ctx.drawImage(canvas, 0, 0);
+      return copy.toDataURL('image/png');
+    }
+    return canvas.toDataURL('image/png');
+  }
+
+  function setStageColor(i, hex) {
+    if (!Number.isInteger(i) || i < 0) return;
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+      stageColorMap.set(i % STAGE_IDS.length, hex);
+      invalidateSprites();
+    }
+  }
+
+  function getStageColorByIndex(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return 'transparent';
+    const i = Math.floor(n);
+    if (i < 0) return 'transparent';
+    const k = i % STAGE_IDS.length;
+    return stageColorMap.get(k) || DEFAULT_STAGE_COLORS[k];
+  }
+
+  function getColorScales() {
+    colorConfig.exp = d3.scaleLinear()
+      .domain([-1, 0, 1])
+      .range([
+        d3.select('#expNeg').property('value'),
+        d3.select('#expZero').property('value'),
+        d3.select('#expPos').property('value')
+      ]);
+
+    colorConfig.mty = d3.scaleLinear()
+      .domain([-1, 0, 1])
+      .range([
+        d3.select('#mtyNeg').property('value'),
+        d3.select('#mtyZero').property('value'),
+        d3.select('#mtyPos').property('value')
+      ]);
+
+    colorConfig.snv = d3.scaleLinear()
+      .domain([-1, 0, 1])
+      .range([
+        d3.select('#snvNeg').property('value'),
+        d3.select('#snvZero').property('value'),
+        d3.select('#snvPos').property('value')
+      ]);
+
+    colorConfig.cnv = d3.scaleLinear()
+      .domain([-1, 0, 1])
+      .range([
+        d3.select('#cnvNeg').property('value'),
+        d3.select('#cnvZero').property('value'),
+        d3.select('#cnvPos').property('value')
+      ]);
+
+    colorConfig.edge = {
+      neg: d3.select('#edgeNeg').property('value'),
+      zero: d3.select('#edgeZero').property('value'),
+      pos: d3.select('#edgePos').property('value')
+    };
+  }
+
+  function metricKey(omicsType) {
+    const metric = omicsMetric[omicsType] || 'raw';
+    const suffix = metric === 'zscore' ? 'z' : metric === 'norm' ? 'norm' : 'vals';
+    return `${omicsType}_${suffix}`;
+  }
+
+  function getValueRange(nodes, omicsType) {
+    const key = metricKey(omicsType);
+    let allVals = [];
+    nodes.forEach(n => {
+      const vals = n[key];
+      if (Array.isArray(vals)) {
+        allVals = allVals.concat(vals.filter(v => typeof v === 'number' && !Number.isNaN(v)));
+      }
+    });
+    const min = d3.min(allVals);
+    const max = d3.max(allVals);
+    return [min ?? -1, 0, max ?? 1];
+  }
+
+  function updateValueRangeInputs(nodes) {
+    const omicsType = d3.select('#omicsType').property('value');
+    const [vmin, vzero, vmax] = getValueRange(nodes, omicsType);
+    d3.select('#rangeMin').property('value', Number(vmin).toFixed(2));
+    d3.select('#rangeMax').property('value', Number(vmax).toFixed(2));
+
+    colorConfig[omicsType] = d3.scaleLinear()
+      .domain([vmin, vzero, vmax])
+      .range([
+        d3.select(`#${omicsType}Neg`).property('value'),
+        d3.select(`#${omicsType}Zero`).property('value'),
+        d3.select(`#${omicsType}Pos`).property('value')
+      ]);
+  }
+
+  function setEdgeRangeInputs(edges) {
+    const metric = d3.select('#edgeMetric').property('value');
+    const vals = edges
+      .map(e => toNum((e && e[metric]) ?? e?.weight))
+      .filter(Number.isFinite);
+    if (!vals.length) return;
+
+    let emin = d3.min(vals), emax = d3.max(vals);
+    if (emin === emax) {
+      const pad = Math.max(1e-6, Math.abs(emin) * 0.01 || 0.01);
+      emin -= pad;
+      emax += pad;
+    }
+    d3.select('#eRangeMin').property('value', emin.toFixed(3));
+    d3.select('#eRangeMax').property('value', emax.toFixed(3));
+  }
+
+  function subsetValuesByIndices(values, indices) {
+    if (!Array.isArray(values)) return [];
+    if (!Array.isArray(indices)) return values.slice();
+    return indices.map(i => values[i]);
+  }
+
+  function getNodeSampleCount(nodeDatum) {
+    return Math.max(
+      nodeDatum?.exp_vals?.length || 0,
+      nodeDatum?.mty_vals?.length || 0,
+      nodeDatum?.cnv_vals?.length || 0,
+      nodeDatum?.snv_vals?.length || 0,
+      nodeDatum?.stage_idx?.length || 0,
+      1
+    );
+  }
+
+  function getTop20SampleIndicesForNode(nodeDatum) {
+    const count = getNodeSampleCount(nodeDatum);
+    const ranked = [];
+
+    for (let i = 0; i < count; i++) {
+      const exp = toNum(nodeDatum?.exp_vals?.[i]);
+      const mty = toNum(nodeDatum?.mty_vals?.[i]);
+      const vals = [exp, mty].filter(Number.isFinite);
+      if (!vals.length) continue;
+
+      const score = d3.median(vals);
+      if (Number.isFinite(score)) {
+        ranked.push({ index: i, score });
+      }
+    }
+
+    return ranked
+      .sort((a, b) => d3.descending(a.score, b.score) || d3.ascending(a.index, b.index))
+      .slice(0, 20)
+      .map(d => d.index)
+      .sort((a, b) => a - b);
+  }
+
+  function getDisplaySampleIndices(nodeDatum) {
+    if (!useTop20PerNode) return null;
+    return getTop20SampleIndicesForNode(nodeDatum);
+  }
+
+  function getDisplayValues(nodeDatum, values) {
+    const indices = getDisplaySampleIndices(nodeDatum);
+    if (!indices) return Array.isArray(values) ? values : [];
+    return subsetValuesByIndices(values, indices);
+  }
+
+  function renderStageLegend() {
+    const container = d3.select('#stageLegend');
+    if (container.empty()) return;
+    container.selectAll('*').remove();
+
+    const wrap = container.append('div')
+      .style('display', 'inline-flex')
+      .style('gap', '14px')
+      .style('align-items', 'center')
+      .style('flex-wrap', 'wrap');
+
+    const present = new Set();
+    if (currentData?.nodes?.length) {
+      currentData.nodes.forEach(n => {
+        const arr0 = Array.isArray(n.stage_idx) ? n.stage_idx : [];
+        const arr = getDisplayValues(n, arr0);
+        arr.forEach(v => {
+          const x = Math.floor(+v);
+          if (Number.isFinite(x) && x >= 0) present.add(x % STAGE_IDS.length);
+        });
+      });
+    }
+
+    STAGE_IDS.forEach(i => {
+      const hasData = present.has(i);
+      const color = stageColorMap.get(i) || DEFAULT_STAGE_COLORS[i];
+      const row = wrap.append('label')
+        .style('display', 'inline-flex')
+        .style('align-items', 'center')
+        .style('gap', '8px');
+
+      row.append('span')
+        .text(`group ${i}`)
+        .style('opacity', hasData ? 1 : 0.45);
+
+      row.append('input')
+        .attr('type', 'color')
+        .attr('id', `stageColor-${i}`)
+        .attr('value', color)
+        .property('value', color)
+        .property('disabled', !hasData)
+        .style('width', '28px')
+        .style('height', '28px')
+        .style('padding', '0')
+        .style('border', '1px solid #ccc')
+        .style('cursor', hasData ? 'pointer' : 'not-allowed')
+        .style('filter', hasData ? null : 'grayscale(100%) brightness(0.85)')
+        .style('opacity', hasData ? 1 : 0.7)
+        .on('input', function () {
+          if (!hasData) return;
+          setStageColor(i, this.value);
+          updateStyles();
+        })
+        .on('change', function () {
+          if (!hasData) return;
+          setStageColor(i, this.value);
+          updateStyles();
+        });
+    });
+  }
+
+  function computeLayoutOnce(data) {
+    const box = document.getElementById('networkViz').getBoundingClientRect();
+    const width = box.width || window.innerWidth;
+    const height = box.height || (window.innerHeight - 165);
+
+    const nodes = data.nodes;
+    const edgesForLayout = data.edges.map(e => ({
+      ...e,
+      source: getId(e.source),
+      target: getId(e.target),
+    }));
+
+    const sim = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(edgesForLayout).id(d => getId(d.id)).distance(80))
+      .force('charge', d3.forceManyBody().strength(-90))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(NODE_SIZE * 0.48))
+      .alphaDecay(0.05)
+      .velocityDecay(0.90)
+      .alphaMin(0.001);
+
+    for (let i = 0; i < 220; ++i) sim.tick();
+    sim.stop();
+
+    nodes.forEach((n, i) => {
+      if (typeof n.x !== 'number' || typeof n.y !== 'number') {
+        n.x = width / 2 + 140 * Math.cos(2 * Math.PI * i / Math.max(nodes.length, 1));
+        n.y = height / 2 + 140 * Math.sin(2 * Math.PI * i / Math.max(nodes.length, 1));
+      }
+    });
+  }
+
+  function buildFilteredCommunity(raw, dmin, dmax) {
+    const nodesById = new Map(raw.nodes.map(n => [getId(n.id), n]));
+
+    const inRangeIds = new Set(
+      raw.nodes.filter(n => n.degree >= dmin && n.degree <= dmax).map(n => getId(n.id))
+    );
+
+    const highNeighborIds = new Set();
+    raw.edges.forEach(e => {
+      const sId = getId(e.source);
+      const tId = getId(e.target);
+      const sNode = nodesById.get(sId);
+      const tNode = nodesById.get(tId);
+      if (!sNode || !tNode) return;
+      const sIn = inRangeIds.has(sId);
+      const tIn = inRangeIds.has(tId);
+      if (sIn && tNode.degree > dmax) highNeighborIds.add(tId);
+      if (tIn && sNode.degree > dmax) highNeighborIds.add(sId);
+    });
+
+    const usedIdSet = new Set([...inRangeIds, ...highNeighborIds]);
+
+    const nodesUsed = raw.nodes
+      .filter(n => usedIdSet.has(getId(n.id)))
+      .map(n => ({ ...n, id: getId(n.id) }));
+
+    const edgesUsed = raw.edges
+      .filter(e => {
+        const sId = getId(e.source);
+        const tId = getId(e.target);
+        if (!usedIdSet.has(sId) || !usedIdSet.has(tId)) return false;
+        return inRangeIds.has(sId) || inRangeIds.has(tId);
+      })
+      .map((e, idx) => ({
+        ...e,
+        id: e.id ? String(e.id) : `e-${getId(e.source)}-${getId(e.target)}-${idx}`,
+        source: getId(e.source),
+        target: getId(e.target),
+      }));
+
+    return { nodes: nodesUsed, edges: edgesUsed };
+  }
+
+  function sanitizeForG6(data) {
+    const nodes = (data.nodes || []).map(n => ({
+      ...n,
+      id: endpointId(n.id),
+    }));
+
+    const nodeIdSet = new Set(nodes.map(n => n.id));
+
+    const edges = (data.edges || []).map((e, idx) => {
+      const source = endpointId(e.source);
+      const target = endpointId(e.target);
+      const id = e.id ? String(e.id) : `e-${source}-${target}-${idx}`;
+
+      const valid = source && target && nodeIdSet.has(source) && nodeIdSet.has(target);
+      if (!valid) return null;
+
+      return {
+        ...e,
+        id,
+        source,
+        target,
+      };
+    }).filter(Boolean);
+
+    return { nodes, edges };
+  }
+
+  // =========================
+  // 关键修改 2：port 按圆心连线角度选
+  // 单边一定是 source 圆心指向 target 圆心的方向
+  // =========================
+  function assignEdgePorts(nodes, edges) {
+    const nodeMap = new Map(nodes.map(n => [String(n.id), n]));
+
+    edges.forEach(edge => {
+      const s = nodeMap.get(String(edge.source));
+      const t = nodeMap.get(String(edge.target));
+
+      if (!s || !t) {
+        edge._sourcePort = 'p0';
+        edge._targetPort = 'p36';
+        return;
+      }
+
+      if (String(edge.source) === String(edge.target)) {
+        edge._sourcePort = getNearestPortKeyByAngle(0);
+        edge._targetPort = getNearestPortKeyByAngle(-Math.PI / 2);
+        return;
+      }
+
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+
+      const sourceAngle = Math.atan2(dy, dx);
+      const targetAngle = Math.atan2(-dy, -dx);
+
+      edge._sourcePort = getNearestPortKeyByAngle(sourceAngle);
+      edge._targetPort = getNearestPortKeyByAngle(targetAngle);
+    });
+  }
+
+  function annotateEdgeGeometry(edges) {
+    const pairMap = new Map();
+
+    edges.forEach((e) => {
+      const s = String(e.source);
+      const t = String(e.target);
+      const key = s <= t ? `${s}|${t}` : `${t}|${s}`;
+      if (!pairMap.has(key)) pairMap.set(key, []);
+      pairMap.get(key).push(e);
+    });
+
+    function markStraight(e) {
+      e._edgeType = 'line';
+      e._curvePosition = 0.5;
+      e._curveOffset = 0;
+    }
+
+    function markCurved(e, offset) {
+      e._edgeType = 'quadratic';
+      e._curvePosition = 0.5;
+      e._curveOffset = offset;
+    }
+
+    function buildCenteredOffsets(count, step) {
+      if (count <= 0) return [];
+      if (count === 1) return [0];
+      const out = [0];
+      let level = 1;
+      while (out.length < count) {
+        out.push(level * step);
+        if (out.length < count) out.push(-level * step);
+        level += 1;
+      }
+      return out.slice(0, count);
+    }
+
+    function buildOneSideOffsets(count, baseGap, step) {
+      return Array.from({ length: count }, (_, i) => baseGap + i * step);
+    }
+
+    pairMap.forEach((list, key) => {
+      const [a, b] = key.split('|');
+
+      if (a === b) {
+        const offsets = buildOneSideOffsets(list.length, 18, SELF_LOOP_STEP);
+        list.forEach((e, i) => markCurved(e, offsets[i]));
+        return;
+      }
+
+      const ab = list.filter(e => String(e.source) === a && String(e.target) === b);
+      const ba = list.filter(e => String(e.source) === b && String(e.target) === a);
+
+      if (list.length === 1) {
+        markStraight(list[0]);
+        return;
+      }
+
+      if (ab.length > 0 && ba.length > 0) {
+        const abOffsets = buildOneSideOffsets(ab.length, OPPOSITE_EDGE_GAP, PARALLEL_EDGE_STEP);
+        const baOffsets = buildOneSideOffsets(ba.length, OPPOSITE_EDGE_GAP, PARALLEL_EDGE_STEP);
+
+        ab.forEach((e, i) => markCurved(e, abOffsets[i]));
+        ba.forEach((e, i) => markCurved(e, baOffsets[i]));
+        return;
+      }
+
+      const arr = ab.length ? ab : ba;
+      const offsets = buildCenteredOffsets(arr.length, PARALLEL_EDGE_STEP);
+
+      arr.forEach((e, i) => {
+        const off = offsets[i];
+        if (off === 0) markStraight(e);
+        else markCurved(e, off);
+      });
+    });
+  }
+
+  function rebuildFocusIndex(data) {
+    neighborMap = new Map();
+    (data.nodes || []).forEach(n => {
+      neighborMap.set(String(n.id), new Set());
+    });
+    (data.edges || []).forEach(e => {
+      const s = String(e.source);
+      const t = String(e.target);
+      if (!neighborMap.has(s)) neighborMap.set(s, new Set());
+      if (!neighborMap.has(t)) neighborMap.set(t, new Set());
+      neighborMap.get(s).add(t);
+      neighborMap.get(t).add(s);
+    });
+  }
+
+  function isNodeFocusedOrNeighbor(nodeId) {
+    if (!focusedNodeId) return true;
+    const id = String(nodeId);
+    if (id === focusedNodeId) return true;
+    return neighborMap.get(focusedNodeId)?.has(id) || false;
+  }
+
+  function isEdgeFocused(edge) {
+    if (!focusedNodeId) return true;
+    const s = String(edge.source);
+    const t = String(edge.target);
+    return s === focusedNodeId || t === focusedNodeId;
+  }
+
+  function strokeArc(ctx, cx, cy, inner, width, start, end, color, alpha = 1) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, inner + width / 2, start, end);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'butt';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function renderNodeSprite(nodeDatum) {
+    const canvas = createOffscreen(SPRITE_SIZE);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, SPRITE_SIZE, SPRITE_SIZE);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    ctx.save();
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillStyle = '#222';
+
+    const label = String(nodeDatum.id || '');
+    const clipped = label.length > 18 ? `${label.slice(0, 16)}…` : label;
+
+    ctx.strokeText(clipped, CX, 24);
+    ctx.fillText(clipped, CX, 24);
+    ctx.restore();
+
+    const omicsTypeSelected = d3.select('#omicsType').property('value');
+    const rmin = +d3.select('#rangeMin').property('value');
+    const rmax = +d3.select('#rangeMax').property('value');
+
+    const displayIndices = getDisplaySampleIndices(nodeDatum);
+    const sampleCount = displayIndices
+      ? Math.max(displayIndices.length, 1)
+      : Math.max(
+          nodeDatum.exp_vals?.length || 0,
+          nodeDatum.mty_vals?.length || 0,
+          nodeDatum.cnv_vals?.length || 0,
+          nodeDatum.snv_vals?.length || 0,
+          nodeDatum.stage_idx?.length || 0,
+          1
+        );
+
+    const angleStep = 2 * Math.PI / sampleCount;
+
+    const rings = RING_LAYOUT.map(ring => {
+      if (ring.type === 'stage') {
+        const vals0 = Array.isArray(nodeDatum.stage_idx) ? nodeDatum.stage_idx : [];
+        return {
+          ...ring,
+          vals: getDisplayValues(nodeDatum, vals0),
+          scale: null
+        };
+      }
+      const key = metricKey(ring.type);
+      const vals0 = Array.isArray(nodeDatum[key]) ? nodeDatum[key] : [];
+      return {
+        ...ring,
+        vals: getDisplayValues(nodeDatum, vals0),
+        scale: colorConfig[ring.type],
+      };
+    }).filter(r => Array.isArray(r.vals));
+
+    ctx.save();
+    ctx.strokeStyle = '#e8e8e8';
+    ctx.lineWidth = 1.4;
+    rings.forEach(r => {
+      ctx.beginPath();
+      ctx.arc(CX, CY, r.inner + RING_W / 2, 0, 2 * Math.PI);
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    rings.forEach(ring => {
+      const isSelectedOmics = ring.type === omicsTypeSelected;
+      const isStage = ring.type === 'stage';
+      const vals = ring.vals.length ? ring.vals : new Array(sampleCount).fill(null);
+
+      vals.forEach((v, i) => {
+        const start = -Math.PI / 2 + i * angleStep;
+        const end = -Math.PI / 2 + (i + 1) * angleStep;
+        if (v == null || Number.isNaN(v)) return;
+
+        let fill = 'transparent';
+        let alpha = 1;
+
+        if (isStage) {
+          fill = getStageColorByIndex(v);
+          alpha = fill === 'transparent' ? 0 : 1;
+        } else {
+          const inRange = v >= rmin && v <= rmax;
+          fill = (isSelectedOmics && !inRange) ? '#CCCCCC' : ring.scale(v);
+          alpha = (!isSelectedOmics) ? 1 : (inRange ? 1 : 0.28);
+        }
+
+        strokeArc(ctx, CX, CY, ring.inner, RING_W, start, end, fill, alpha);
+      });
+    });
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(CX, CY, RING_W + 1.5, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#777';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+
+    return canvasToDataURL(canvas);
+  }
+
+  function rebuildNodeSpritesIfNeeded() {
+    if (!currentData || !spriteDirty) return;
+    currentData.nodes.forEach(node => {
+      node._sprite = renderNodeSprite(node);
+    });
+    spriteDirty = false;
+  }
+
+  function computeNodeStyleUpdates(nodes) {
+    rebuildNodeSpritesIfNeeded();
+
+    const omicsType = d3.select('#omicsType').property('value');
+    const key = metricKey(omicsType);
+    const rmin = +d3.select('#rangeMin').property('value');
+    const rmax = +d3.select('#rangeMax').property('value');
+
+    nodes.forEach(n => {
+      const vals0 = Array.isArray(n[key]) ? n[key] : [];
+      const vals = getDisplayValues(n, vals0);
+      n._highlight = Array.isArray(vals) && vals.some(v => Number.isFinite(v) && v >= rmin && v <= rmax);
+    });
+
+    return nodes.map(node => {
+      const related = isNodeFocusedOrNeighbor(node.id);
+      let opacity = node._highlight ? 1 : 0.35;
+
+      if (focusedNodeId) {
+        if (related) opacity = Math.max(opacity, 1);
+        else opacity = 0.15;
+      }
+
+      return {
+        id: node.id,
+        style: {
+          x: node.x,
+          y: node.y,
+          size: [NODE_SIZE, NODE_SIZE],
+          cursor: 'pointer',
+          port: true,
+          portLineWidth: 0,
+          portStroke: 'transparent',
+          src: node._sprite,
+          opacity,
+        },
+      };
+    });
+  }
+
+  function computeEdgeStyleUpdates(edges) {
+    const edgeMetric = d3.select('#edgeMetric').property('value');
+    let eMin = +d3.select('#eRangeMin').property('value');
+    let eMax = +d3.select('#eRangeMax').property('value');
+    if (Number.isFinite(eMin) && Number.isFinite(eMax) && eMin > eMax) {
+      [eMin, eMax] = [eMax, eMin];
+    }
+
+    const C_NEG  = d3.select('#edgeNeg').property('value')  || '#00FF00';
+    const C_ZERO = d3.select('#edgeZero').property('value') || '#FFFFFF';
+    const C_POS  = d3.select('#edgePos').property('value')  || '#FF00FF';
+    const GREY_OUT = '#D6D6D6';
+
+    const negScale = d3.scaleLinear()
+      .domain([eMin, 0])
+      .range([C_NEG, C_ZERO])
+      .clamp(true);
+
+    const posScale = d3.scaleLinear()
+      .domain([0, eMax])
+      .range([C_ZERO, C_POS])
+      .clamp(true);
+
+    edges.forEach(e => {
+      const metW = toNum(e?.[edgeMetric]);
+      const rawW = toNum(e?.weight);
+      const safeW = Number.isFinite(metW) ? metW : (Number.isFinite(rawW) ? rawW : 0);
+      e._w = safeW;
+      e._inRange = safeW >= eMin && safeW <= eMax;
+    });
+
+    const visibleEdges = edges.filter(e => e._inRange);
+    const absVals = visibleEdges.map(e => Math.abs(e._w)).filter(Number.isFinite);
+    const absMin = d3.min(absVals) ?? 0;
+    const absMax = d3.max(absVals) ?? 1;
+
+    let interactColorById = null;
+    if (useInteractMode) {
+      const filtered = visibleEdges.filter(e =>
+        e.interact_id !== undefined &&
+        e.interact_id !== null &&
+        e.interact_id !== ''
+      );
+
+      const ids = Array.from(new Set(filtered.map(e => e.interact_id)));
+      interactColorById = new Map();
+      ids.forEach((id, i) => {
+        interactColorById.set(id, INTERACT_COLORS[i % INTERACT_COLORS.length]);
+      });
+    }
+
+    const widthScale = d3.scaleSqrt()
+      .domain([0, absMax || 1])
+      .range([1.8, 4.8])
+      .clamp(true);
+
+    const opacityScale = d3.scaleLinear()
+      .domain([absMin, absMax || 1])
+      .range([0.8, 1.0])
+      .clamp(true);
+
+    function baseWeightColor(d) {
+      const v = d._w;
+      if (!Number.isFinite(v)) return '#CCCCCC';
+      if (v === 0) return C_ZERO;
+      return v < 0 ? negScale(v) : posScale(v);
+    }
+
+    function edgeStroke(d) {
+      if (!d._inRange) return GREY_OUT;
+      if (useInteractMode) {
+        const c = interactColorById?.get(d.interact_id);
+        return c || baseWeightColor(d);
+      }
+      return baseWeightColor(d);
+    }
+
+    return edges.map(edge => {
+      const related = isEdgeFocused(edge);
+
+      let stroke = edgeStroke(edge);
+      let opacity = edge._inRange ? opacityScale(Math.abs(edge._w || 0)) : 0.08;
+      let lineWidth = edge._inRange ? widthScale(Math.abs(edge._w || 0)) : 0.8;
+
+      if (focusedNodeId) {
+        if (related) {
+          opacity = 1;
+          lineWidth += 1.0;
+        } else {
+          opacity = 0.04;
+        }
+      }
+
+      const arrowSize = Math.max(8, Math.min(14, lineWidth * 1.7));
+
+      return {
+        id: edge.id,
+        sourcePort: edge._sourcePort || 'p0',
+        targetPort: edge._targetPort || 'p36',
+        type: edge._edgeType || 'line',
+        style: {
+          stroke,
+          strokeOpacity: opacity,
+          lineWidth,
+          lineCap: 'round',
+          lineJoin: 'round',
+          increasedLineWidthForHitTesting: 12,
+          endArrow: true,
+          endArrowType: 'vee',
+          endArrowSize: arrowSize,
+          endArrowFill: stroke,
+          endArrowStroke: stroke,
+          endArrowStrokeOpacity: opacity,
+          curveOffset: edge._curveOffset || 0,
+          curvePosition: edge._curvePosition ?? 0.5,
+        },
+      };
+    });
+  }
+
+  function buildNodeUpdates() {
+    return computeNodeStyleUpdates(currentData.nodes);
+  }
+
+  function buildEdgeUpdates() {
+    return computeEdgeStyleUpdates(currentData.edges);
+  }
+
+  function buildG6Data(data) {
+    annotateEdgeGeometry(data.edges);
+    assignEdgePorts(data.nodes, data.edges);
+
+    const nodeStyleMap = new Map(
+      computeNodeStyleUpdates(data.nodes).map(item => [item.id, item.style])
+    );
+
+    const edgeStyleMap = new Map(
+      computeEdgeStyleUpdates(data.edges).map(item => [item.id, item])
+    );
+
+    return {
+      nodes: data.nodes.map(node => ({
+        id: node.id,
+        type: 'image',
+        data: { ...node },
+        ports: getNodePorts(),
+        style: {
+          x: node.x,
+          y: node.y,
+          size: [NODE_SIZE, NODE_SIZE],
+          cursor: 'pointer',
+          port: true,
+          portLineWidth: 0,
+          portStroke: 'transparent',
+          ...(nodeStyleMap.get(node.id) || {
+            src: node._sprite || renderNodeSprite(node),
+            opacity: 1,
+          }),
+        },
+      })),
+
+      edges: data.edges.map(edge => {
+        const item = edgeStyleMap.get(edge.id);
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourcePort: edge._sourcePort || 'p0',
+          targetPort: edge._targetPort || 'p36',
+          type: edge._edgeType || 'line',
+          data: {
+            ...edge,
+            edgeType: edge._edgeType || 'line',
+            curveOffset: edge._curveOffset || 0,
+            curvePosition: edge._curvePosition ?? 0.5,
+          },
+          style: {
+            ...(item?.style || {}),
+            curveOffset: edge._curveOffset || 0,
+            curvePosition: edge._curvePosition ?? 0.5,
+          },
+        };
+      }),
+    };
+  }
+
+  function getEventNodeId(evt) {
+    return String(
+      evt?.target?.id ??
+      evt?.target?.attributes?.id ??
+      evt?.item?.id ??
+      evt?.itemId ??
+      ''
+    );
+  }
+
+  function clearFocus() {
+    if (!focusedNodeId) return;
+    focusedNodeId = null;
+    updateStyles();
+  }
+
+  function syncCurrentNodePositionsFromGraph() {
+    if (!graph || !currentData) return;
+    try {
+      const nodeData = graph.getNodeData();
+      const posMap = new Map(
+        nodeData.map(n => [String(n.id), { x: n.style?.x, y: n.style?.y }])
+      );
+      currentData.nodes.forEach(n => {
+        const p = posMap.get(String(n.id));
+        if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+          n.x = p.x;
+          n.y = p.y;
+        }
+      });
+    } catch (err) {
+      console.warn('syncCurrentNodePositionsFromGraph failed:', err);
+    }
+  }
+
+  async function refreshGraphData({ fit = false } = {}) {
+    if (!graph || !currentData) return;
+    const g6data = buildG6Data(currentData);
+    graph.setData(g6data);
+    await Promise.resolve(graph.render());
+    updateStyles();
+    if (fit) {
+      await graph.fitView({
+        when: 'always',
+        direction: 'both',
+        padding: 8,
+      });
+    }
+  }
+
+  function ensureGraph() {
+    if (graph) return graph;
+
+    graph = new Graph({
+      container: 'networkViz',
+      autoResize: true,
+      background: '#fff',
+      padding: 8,
+      animation: false,
+      autoFit: 'view',
+      zoomRange: [0.15, 8],
+      devicePixelRatio: Math.min(window.devicePixelRatio || 2, 3),
+      node: {
+        type: 'image',
+      },
+      edge: {
+        type: (datum) => datum?.data?.edgeType || 'line',
+        style: {
+          lineCap: 'round',
+          lineJoin: 'round',
+          increasedLineWidthForHitTesting: 12,
+          endArrow: true,
+          endArrowType: 'vee',
+          curveOffset: (datum) => datum?.data?.curveOffset || 0,
+          curvePosition: (datum) => datum?.data?.curvePosition ?? 0.5,
+        },
+      },
+      behaviors: [
+        { type: 'drag-canvas', key: 'drag-canvas' },
+        { type: 'zoom-canvas', key: 'zoom-canvas' },
+        { type: 'drag-element', key: 'drag-element', enable: (event) => event.targetType === 'node' },
+        { type: 'optimize-viewport-transform', key: 'optimize' },
+      ],
+    });
+
+    graph.on('node:click', (evt) => {
+      const id = getEventNodeId(evt);
+      if (!id) return;
+      focusedNodeId = id;
+      updateStyles();
+    });
+
+    graph.on('node:dblclick', () => {
+      clearFocus();
+    });
+
+    graph.on('canvas:click', () => {
+      clearFocus();
+    });
+
+    graph.on('canvas:dblclick', () => {
+      clearFocus();
+    });
+
+    graph.on('node:dragend', () => {
+      syncCurrentNodePositionsFromGraph();
+      if (currentData) {
+        assignEdgePorts(currentData.nodes, currentData.edges);
+        annotateEdgeGeometry(currentData.edges);
+      }
+      updateStyles();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') clearFocus();
+    });
+
+    return graph;
+  }
+
+  function updateStyles() {
+    if (!currentData || !graph) return;
+    getColorScales();
+
+    syncCurrentNodePositionsFromGraph();
+    assignEdgePorts(currentData.nodes, currentData.edges);
+    annotateEdgeGeometry(currentData.edges);
+
+    const nodeUpdates = buildNodeUpdates();
+    const edgeUpdates = buildEdgeUpdates();
+
+    graph.updateNodeData(nodeUpdates);
+    graph.updateEdgeData(edgeUpdates);
+    graph.draw();
+  }
+
+  async function renderCommunity() {
+    const sel = d3.select('#commSelect');
+    const id = sel.property('value');
+    if (!id) return;
+
+    currentCommId = id;
+    focusedNodeId = null;
+
+    const dmin = +d3.select('#degMin').property('value');
+    const dmax = +d3.select('#degMax').property('value');
+    const raw = window.allCommunities.find(d => String(d.comm) === id);
+    if (!raw) {
+      console.warn('community does not exist:', id);
+      return;
+    }
+
+    const filtered = buildFilteredCommunity(raw, dmin, dmax);
+    computeLayoutOnce(filtered);
+
+    const data = sanitizeForG6(filtered);
+    assignEdgePorts(data.nodes, data.edges);
+
+    currentData = data;
+    rebuildFocusIndex(data);
+    annotateEdgeGeometry(data.edges);
+    invalidateSprites();
+
+    updateValueRangeInputs(data.nodes);
+    setEdgeRangeInputs(data.edges);
+    renderStageLegend();
+
+    ensureGraph();
+    await refreshGraphData({ fit: true });
+  }
+
+  async function savePNG() {
+    if (!graph) return;
+    const dataURL = await graph.toDataURL({ mode: 'overall', type: 'image/png' });
+    const [head, content] = dataURL.split(',');
+    const contentType = head.match(/:(.*?);/)[1];
+    const bstr = atob(content);
+    let length = bstr.length;
+    const u8arr = new Uint8Array(length);
+    while (length--) u8arr[length] = bstr.charCodeAt(length);
+    const blob = new Blob([u8arr], { type: contentType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentCommId || 'community'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function buildSessionJSON() {
+    return {
+      sid: getSessionId(),
+      community: d3.select('#commSelect').property('value'),
+      degreeRange: {
+        min: +d3.select('#degMin').property('value'),
+        max: +d3.select('#degMax').property('value'),
+      },
+      dataFilter: {
+        dataType: d3.select('#dataType').property('value'),
+        omicsType: d3.select('#omicsType').property('value'),
+        valueRange: {
+          min: +d3.select('#rangeMin').property('value'),
+          max: +d3.select('#rangeMax').property('value'),
+        },
+      },
+      edgeFilter: {
+        metric: d3.select('#edgeMetric').property('value'),
+        range: {
+          min: +d3.select('#eRangeMin').property('value'),
+          max: +d3.select('#eRangeMax').property('value'),
+        },
+      },
+      colors: {
+        exp: { neg: d3.select('#expNeg').property('value'), zero: d3.select('#expZero').property('value'), pos: d3.select('#expPos').property('value') },
+        mty: { neg: d3.select('#mtyNeg').property('value'), zero: d3.select('#mtyZero').property('value'), pos: d3.select('#mtyPos').property('value') },
+        snv: { neg: d3.select('#snvNeg').property('value'), zero: d3.select('#snvZero').property('value'), pos: d3.select('#snvPos').property('value') },
+        cnv: { neg: d3.select('#cnvNeg').property('value'), zero: d3.select('#cnvZero').property('value'), pos: d3.select('#cnvPos').property('value') },
+        edge: { neg: d3.select('#edgeNeg').property('value'), zero: d3.select('#edgeZero').property('value'), pos: d3.select('#edgePos').property('value') },
+      },
+      useInteractMode,
+      useTop20PerNode,
+      omicsMetric,
+      focusedNodeId,
+      data: currentData,
+      source: getJsonPath(),
+      savedAt: new Date().toISOString(),
+    };
+  }
+
+  function saveJSON() {
+    const state = buildSessionJSON();
+    const text = JSON.stringify(state, null, 2);
+    const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const sid = state.sid || 'nosid';
+    const comm = state.community || 'community';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session_${sid}_${comm}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function init() {
+    getColorScales();
+    const sid = getSessionId();
+    const jsonPath = getJsonPath();
+
+    try {
+      const res = await fetch(jsonPath);
+      if (!res.ok) {
+        throw new Error(`Failed to load JSON: ${jsonPath} (${res.status})`);
+      }
+
+      const json = await res.json();
+      const dataArr = Array.isArray(json) ? json : Object.values(json);
+      window.allCommunities = dataArr;
+
+      const sel = d3.select('#commSelect');
+      dataArr.forEach(item => {
+        sel.append('option').attr('value', item.comm).text(`Network ${item.comm}`);
+      });
+
+      if (dataArr.length) sel.property('value', dataArr[0].comm);
+
+      sel.on('change', renderCommunity);
+      d3.selectAll('#degMin, #degMax').on('change', renderCommunity);
+
+      d3.selectAll('#colorPickers input[type="color"]').on('input', () => {
+        getColorScales();
+        invalidateSprites();
+        updateStyles();
+      });
+
+      d3.selectAll('#edgeNeg, #edgeZero, #edgePos').on('input', () => {
+        getColorScales();
+        updateStyles();
+      });
+
+      d3.select('#omicsType').on('change', () => {
+        const omicsType = d3.select('#omicsType').property('value');
+        const metric = omicsMetric[omicsType] || 'raw';
+        d3.select('#dataType').property('value', metric);
+        if (currentData) {
+          updateValueRangeInputs(currentData.nodes);
+          invalidateSprites();
+          updateStyles();
+        }
+      });
+
+      d3.select('#dataType').on('change', () => {
+        const omicsType = d3.select('#omicsType').property('value');
+        const metric = d3.select('#dataType').property('value');
+        omicsMetric[omicsType] = metric;
+        if (currentData) {
+          updateValueRangeInputs(currentData.nodes);
+          invalidateSprites();
+          updateStyles();
+        }
+      });
+
+      d3.select('#edgeMetric').on('change', () => {
+        if (!currentData) return;
+        setEdgeRangeInputs(currentData.edges);
+        updateStyles();
+      });
+
+      d3.selectAll('#eRangeMin, #eRangeMax').on('change', updateStyles);
+
+      d3.select('#edgeFilterBtn').on('click', () => {
+        updateStyles();
+      });
+
+      d3.select('#filterBtn').on('click', () => {
+        invalidateSprites();
+        updateStyles();
+      });
+
+      d3.select('#useInteract').on('change', function () {
+        useInteractMode = this.checked;
+        updateStyles();
+      });
+
+      d3.select('#top20Toggle').on('change', function () {
+        useTop20PerNode = this.checked;
+        invalidateSprites();
+        renderStageLegend();
+        updateStyles();
+      });
+
+      document.getElementById('fitBtn').onclick = () => graph && graph.fitView({
+        when: 'always',
+        direction: 'both',
+        padding: 8,
+      });
+      document.getElementById('savePNGBtn').onclick = () => savePNG();
+      document.getElementById('saveJSONBtn').onclick = () => saveJSON();
+      document.getElementById('zoomIn').onclick = () => graph && graph.zoomBy(1.2);
+      document.getElementById('zoomOut').onclick = () => graph && graph.zoomBy(1 / 1.2);
+
+      await renderCommunity();
+
+      if (sid) {
+        fetch('/cmt_figures/track/viewer_proxy.php?sid=' + encodeURIComponent(sid) + '&page=directed').catch(() => {});
+      }
+    } catch (err) {
+      console.error('Viewer initialization failed:', err);
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
