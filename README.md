@@ -110,6 +110,8 @@ The interface supports various functionalities including filtering, color adjust
 <img width="4102" height="1466" alt="image" src="https://github.com/user-attachments/assets/1da1c222-d5b3-4605-b4c9-07a794bbb5ba" />
 
 
+## Example:
+<img width="1692" height="1078" alt="image" src="https://github.com/user-attachments/assets/d443daf3-cd93-431f-b54f-0deb673152d5" />
 
 
 
