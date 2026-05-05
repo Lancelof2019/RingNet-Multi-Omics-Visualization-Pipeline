@@ -1,0 +1,2814 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-omics Visualization - G6</title>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@antv/g6@5/dist/g6.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    #controls {
+      padding: 10px;
+      background: #f7f7f7;
+      border-bottom: 1px solid #ddd;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      min-height: 165px;
+      z-index: 100;
+      overflow-y: auto;
+    }
+
+    #controls label,
+    #controls div {
+      margin-right: 18px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    #controls input[type="color"] {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    #networkContainer {
+      position: absolute;
+      top: 165px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      background: white;
+    }
+
+    #networkViz {
+      width: 100%;
+      height: 100%;
+      background: white;
+    }
+
+    #zoomControls {
+      position: fixed;
+      top: 185px;
+      right: 20px;
+      z-index: 200;
+    }
+
+    #zoomControls button {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 18px;
+      width: 40px;
+      height: 40px;
+    }
+
+    .hint {
+      color: #666;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <label>
+      Network：
+      <select id="commSelect"></select>
+    </label>
+
+    <label>
+      Degree Range：
+      <input type="number" id="degMin" value="0" min="0" max="500" style="width:60px;">
+      –
+      <input type="number" id="degMax" value="500" min="0" max="500" style="width:60px;">
+    </label>
+
+    <button id="fitBtn">Fit</button>
+    <button id="savePNGBtn">Save PNG</button>
+    <button id="saveSVGBtn">Save SVG</button>
+
+    <br>
+
+    <div id="colorPickers" style="margin-top:8px;">
+      <span>Data1：</span>
+      <input type="color" id="expNeg" value="#0000FF" title="Exp Negative" />
+      <input type="color" id="expZero" value="#F7F7F7" title="Exp Zero" />
+      <input type="color" id="expPos" value="#FF0000" title="Exp Positive" />
+
+      <span style="display:inline-block; width:30px;"></span>
+
+      <span>Data2：</span>
+      <input type="color" id="mtyNeg" value="#0000FF" title="Mty Negative" />
+      <input type="color" id="mtyZero" value="#F7F7F7" title="Mty Zero" />
+      <input type="color" id="mtyPos" value="#FF0000" title="Mty Positive" />
+
+      <span style="display:inline-block; width:30px;"></span>
+
+      <span>Data3：</span>
+      <input type="color" id="cnvNeg" value="#0000FF" title="CNV Negative" />
+      <input type="color" id="cnvZero" value="#F7F7F7" title="CNV Zero" />
+      <input type="color" id="cnvPos" value="#FF0000" title="CNV Positive" />
+
+      <span style="display:inline-block; width:30px;"></span>
+
+      <span>Data4：</span>
+      <input type="color" id="snvNeg" value="#0000FF" title="SNV Negative" />
+      <input type="color" id="snvZero" value="#F7F7F7" title="SNV Zero" />
+      <input type="color" id="snvPos" value="#FF0000" title="SNV Positive" />
+    </div>
+
+    <br>
+
+    <div style="display:inline-block; margin-top:8px; vertical-align:middle;">
+      <label>
+        Data:
+        <select id="omicsType">
+          <option value="exp">Data1</option>
+          <option value="mty">Data2</option>
+          <option value="cnv">Data3</option>
+          <option value="snv">Data4</option>
+        </select>
+      </label>
+
+      <label>
+        Data Norm:
+        <select id="dataType">
+          <option value="raw">Raw</option>
+          <option value="norm">Min-Max norm</option>
+          <option value="zscore">Z-score</option>
+        </select>
+      </label>
+
+      <label>
+        Value Range:
+        <input type="number" id="rangeMin" value="-1" step="0.1" style="width:60px;">
+        -
+        <input type="number" id="rangeMax" value="1" step="0.1" style="width:60px;">
+      </label>
+
+      <button id="filterBtn">Filter</button>
+
+      <label style="margin-left:12px;">
+        <input type="checkbox" id="differenceDisplayToggle">
+        Difference displaying
+      </label>
+
+      <span class="hint">same samples with separated ring colors</span>
+
+      <div id="differenceThresholdRow" style="
+        display:flex;
+        width:100%;
+        margin-top:8px;
+        margin-left:0;
+        margin-right:0;
+        clear:both;
+        justify-content:flex-start;
+        align-items:center;
+        gap:24px;
+      ">
+        <label style="display:inline-flex; align-items:center; gap:6px; margin:0;">
+          Exp threshold:
+          <input type="range" id="expThresholdSlider" min="0" max="5" step="0.1" value="1.2" style="width:150px;">
+          <input type="number" id="expThresholdValue" value="1.2" min="0" max="5" step="0.1" style="width:70px;">
+        </label>
+
+        <label style="display:inline-flex; align-items:center; gap:6px; margin:0;">
+          Mty threshold:
+          <input type="range" id="mtyThresholdSlider" min="0" max="5" step="0.1" value="1.2" style="width:150px;">
+          <input type="number" id="mtyThresholdValue" value="1.2" min="0" max="5" step="0.1" style="width:70px;">
+        </label>
+
+        <span id="autoNodeFilterStatus" class="hint"></span>
+      </div>
+    </div>
+
+    <br>
+
+    <div class="legend-row" style="margin-top:8px;">
+      <span>Group：</span>
+      <span id="stageLegend" class="legend-inline"></span>
+    </div>
+
+    <br>
+
+    <div>
+      <span>Edges：</span>
+      Negative:
+      <input type="color" id="edgeNeg" value="#00FF00" title="Negative weight" />
+      Zero:
+      <input type="color" id="edgeZero" value="#D0D0D0" title="Zero weight" />
+      Positive:
+      <input type="color" id="edgePos" value="#FF00FF" title="Positive Weight" />
+
+      <label style="margin-left:12px;">
+        <input type="checkbox" id="showEdgeLabels" checked>
+        show edge weights
+      </label>
+    </div>
+
+    <br>
+
+    <div style="margin-top:8px;">
+      <span>Edge Data Norm:</span>
+      <select id="edgeMetric">
+        <option value="w_raw">Raw</option>
+        <option value="w_norm">Min-Max Norm</option>
+        <option value="w_z">Z-score</option>
+      </select>
+
+      <label style="margin-left:12px;">
+        Range:
+        <input type="number" id="eRangeMin" value="-1" step="0.00000001" style="width:120px;">
+        –
+        <input type="number" id="eRangeMax" value="1" step="0.00000001" style="width:120px;">
+      </label>
+
+      <button id="edgeFilterBtn">Filter edges</button>
+
+      <label style="margin-left:12px;">
+        <input type="checkbox" id="useInteract">
+        color by interact_id
+      </label>
+
+      <span class="hint">Undirected merged edges. Filter edges keeps only edges inside the Range. Edge range uses 8 decimal places.</span>
+    </div>
+  </div>
+
+  <div id="zoomControls">
+    <button id="zoomIn">➕</button>
+    <button id="zoomOut">➖</button>
+  </div>
+
+  <div id="networkContainer">
+    <div id="networkViz"></div>
+  </div>
+
+  <script>
+(function () {
+  const { Graph } = G6;
+
+  let graph = null;
+  let currentData = null;
+  let currentCommId = null;
+  let colorConfig = {};
+  let useInteractMode = false;
+  let showEdgeLabels = true;
+
+  let focusedNodeId = null;
+  let neighborMap = new Map();
+  let spriteDirty = true;
+
+  let useDifferenceDisplay = false;
+  let globalDifferenceDisplayIndices = null;
+  let autoNodeFilterInfo = [];
+
+  let edgeFilterApplied = false;
+
+  const EDGE_DECIMALS = 8;
+  const EDGE_SCALE = 10 ** EDGE_DECIMALS;
+  const EDGE_EPS = 10 ** (-EDGE_DECIMALS);
+
+  const autoNodeThresholdRanges = {
+    exp: { min: 0, max: 5 },
+    mty: { min: 0, max: 5 },
+  };
+
+  const omicsMetric = {
+    exp: 'raw',
+    mty: 'raw',
+    snv: 'raw',
+    cnv: 'raw',
+  };
+
+  const INTERACT_COLORS = [
+    '#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd',
+    '#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf',
+    '#393b79','#637939','#8c6d31','#843c39','#7b4173',
+    '#3182bd','#e6550d','#31a354','#756bb1','#636363',
+    '#6baed6','#fd8d3c','#74c476','#9e9ac8','#bdbdbd',
+    '#9ecae1','#fdae6b','#a1d99b','#bcbddc','#d9d9d9'
+  ];
+
+  const DEFAULT_STAGE_COLORS = [
+    '#1f77b4', '#d62728', '#2ca02c', '#ffbf00', '#9467bd', '#ff7f0e'
+  ];
+
+  const STAGE_IDS = [0, 1, 2, 3, 4, 5];
+  const stageColorMap = new Map(STAGE_IDS.map(i => [i, DEFAULT_STAGE_COLORS[i]]));
+
+  const SPRITE_SCALE = 2;
+  const SPRITE_SIZE = 220 * SPRITE_SCALE;
+  const NODE_SIZE = 122;
+  const CX = SPRITE_SIZE / 2;
+  const CY = SPRITE_SIZE / 2;
+  const RING_W = 10 * SPRITE_SCALE;
+  const GAP = 3 * SPRITE_SCALE;
+  const EXPORT_PNG_PIXEL_RATIO = 4;
+  const EXPORT_PADDING = 120;
+
+  const PARALLEL_EDGE_STEP = 22;
+  const OPPOSITE_EDGE_GAP = 16;
+  const SELF_LOOP_STEP = 10;
+
+  const RING_LAYOUT = [
+    { type: 'snv', inner: 1 * (RING_W + GAP) },
+    { type: 'cnv', inner: 2 * (RING_W + GAP) },
+    { type: 'mty', inner: 3 * (RING_W + GAP) },
+    { type: 'exp', inner: 4 * (RING_W + GAP) },
+    { type: 'stage', inner: 5 * (RING_W + GAP) },
+  ];
+
+  const OUTER_RING_RADIUS = RING_LAYOUT[RING_LAYOUT.length - 1].inner + RING_W;
+
+  const PORT_COUNT = 90;
+  const PORT_RADIUS = OUTER_RING_RADIUS - 1;
+
+  const NODE_PORTS_META = Array.from({ length: PORT_COUNT }, (_, i) => {
+    const angle = -Math.PI / 2 + i * (2 * Math.PI / PORT_COUNT);
+    const x = (CX + PORT_RADIUS * Math.cos(angle)) / SPRITE_SIZE;
+    const y = (CY + PORT_RADIUS * Math.sin(angle)) / SPRITE_SIZE;
+
+    return {
+      key: `p${i}`,
+      angle,
+      placement: [x, y],
+    };
+  });
+
+  const NODE_PORTS = NODE_PORTS_META.map(({ key, placement }) => ({ key, placement }));
+
+  function invalidateSprites() {
+    spriteDirty = true;
+  }
+
+  function getSessionId() {
+    return new URLSearchParams(location.search).get('sid') || '';
+  }
+
+  function getJsonPath(fileName = 'community_map_top100.json') {
+    const sid = getSessionId();
+    return sid ? `uploads/${sid}/${fileName}` : `uploads/${fileName}`;
+  }
+
+  function getNodePorts() {
+    return NODE_PORTS;
+  }
+
+  function angleDistance(a, b) {
+    return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  }
+
+  function getNearestPortKeyByAngle(angle) {
+    let bestKey = NODE_PORTS_META[0].key;
+    let bestDist = Infinity;
+
+    NODE_PORTS_META.forEach(p => {
+      const d = angleDistance(angle, p.angle);
+
+      if (d < bestDist) {
+        bestDist = d;
+        bestKey = p.key;
+      }
+    });
+
+    return bestKey;
+  }
+
+  function getId(v) {
+    if (Array.isArray(v)) return getId(v[0]);
+
+    if (typeof v === 'object' && v !== null) {
+      if ('id' in v && v.id != null) return getId(v.id);
+      if ('gene' in v && v.gene != null) return String(v.gene);
+      return '';
+    }
+
+    return String(v ?? '');
+  }
+
+  function endpointId(v) {
+    if (Array.isArray(v)) return endpointId(v[0]);
+
+    if (v && typeof v === 'object') {
+      if (v.id != null) return String(v.id);
+      if (v.gene != null) return String(v.gene);
+      return '';
+    }
+
+    if (v == null) return '';
+
+    return String(v);
+  }
+
+  function toNum(v) {
+    if (Array.isArray(v)) v = v[0];
+    const n = +v;
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function meanAndSd(values) {
+    const arr = values.map(toNum).filter(Number.isFinite);
+    const mean = d3.mean(arr);
+    let sd = d3.deviation(arr);
+
+    if (!Number.isFinite(mean)) return { mean: NaN, sd: NaN };
+    if (!Number.isFinite(sd) || sd === 0) sd = 1;
+
+    return { mean, sd };
+  }
+
+  function safeMean(arr) {
+    const nums = arr.map(toNum).filter(Number.isFinite);
+    return nums.length ? d3.mean(nums) : NaN;
+  }
+
+  function safeSd(arr) {
+    const nums = arr.map(toNum).filter(Number.isFinite);
+    if (nums.length < 2) return 0;
+
+    const sd = d3.deviation(nums);
+    return Number.isFinite(sd) ? sd : 0;
+  }
+
+  function safeQuantile(arr, q) {
+    const nums = arr.map(toNum).filter(Number.isFinite).sort(d3.ascending);
+    if (!nums.length) return NaN;
+
+    const v = d3.quantileSorted(nums, q);
+    return Number.isFinite(v) ? v : NaN;
+  }
+
+  function createOffscreen(size) {
+    if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(size, size);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+
+    return canvas;
+  }
+
+  function canvasToDataURL(canvas) {
+    if (typeof canvas.convertToBlob === 'function') {
+      const copy = document.createElement('canvas');
+      copy.width = canvas.width;
+      copy.height = canvas.height;
+
+      const ctx = copy.getContext('2d');
+      ctx.drawImage(canvas, 0, 0);
+
+      return copy.toDataURL('image/png');
+    }
+
+    return canvas.toDataURL('image/png');
+  }
+
+  function setStageColor(i, hex) {
+    if (!Number.isInteger(i) || i < 0) return;
+
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+      stageColorMap.set(i % STAGE_IDS.length, hex);
+      invalidateSprites();
+    }
+  }
+
+  function getStageColorByIndex(v) {
+    const n = Number(v);
+
+    if (!Number.isFinite(n)) return 'transparent';
+
+    const i = Math.floor(n);
+
+    if (i < 0) return 'transparent';
+
+    const k = i % STAGE_IDS.length;
+
+    return stageColorMap.get(k) || DEFAULT_STAGE_COLORS[k];
+  }
+
+  function getColorScales() {
+    colorConfig.exp = d3.scaleLinear()
+      .domain([-1, 0, 1])
+      .range([
+        d3.select('#expNeg').property('value'),
+        d3.select('#expZero').property('value'),
+        d3.select('#expPos').property('value')
+      ]);
+
+    colorConfig.mty = d3.scaleLinear()
+      .domain([-1, 0, 1])
+      .range([
+        d3.select('#mtyNeg').property('value'),
+        d3.select('#mtyZero').property('value'),
+        d3.select('#mtyPos').property('value')
+      ]);
+
+    colorConfig.snv = d3.scaleLinear()
+      .domain([-1, 0, 1])
+      .range([
+        d3.select('#snvNeg').property('value'),
+        d3.select('#snvZero').property('value'),
+        d3.select('#snvPos').property('value')
+      ]);
+
+    colorConfig.cnv = d3.scaleLinear()
+      .domain([-1, 0, 1])
+      .range([
+        d3.select('#cnvNeg').property('value'),
+        d3.select('#cnvZero').property('value'),
+        d3.select('#cnvPos').property('value')
+      ]);
+
+    colorConfig.edge = {
+      neg: d3.select('#edgeNeg').property('value'),
+      zero: d3.select('#edgeZero').property('value'),
+      pos: d3.select('#edgePos').property('value')
+    };
+  }
+
+  function metricKey(omicsType) {
+    const metric = omicsMetric[omicsType] || 'raw';
+    const suffix = metric === 'zscore' ? 'z' : metric === 'norm' ? 'norm' : 'vals';
+    return `${omicsType}_${suffix}`;
+  }
+
+  function getCurrentEdgeWeight(e) {
+    const edgeMetric = d3.select('#edgeMetric').property('value');
+
+    const metricVal = toNum(e?.[edgeMetric]);
+
+    const pearsonVal = toNum(
+      e?.pearson ??
+      e?.pearson_r ??
+      e?.corr ??
+      e?.correlation ??
+      e?.r
+    );
+
+    const weightVal = toNum(e?.weight);
+
+    if (Number.isFinite(metricVal)) return metricVal;
+    if (Number.isFinite(pearsonVal)) return pearsonVal;
+    if (Number.isFinite(weightVal)) return weightVal;
+
+    return 0;
+  }
+
+  function formatWeight(v) {
+    if (!Number.isFinite(v)) return '';
+
+    // User-facing edge weight label only: display 3 decimals.
+    // Internal edge filtering and calculations still use full numeric values
+    // and the 8-decimal Edge Range precision.
+    return v.toFixed(3);
+  }
+
+  function getNodeSampleCount(nodeDatum) {
+    return Math.max(
+      nodeDatum?.exp_vals?.length || 0,
+      nodeDatum?.mty_vals?.length || 0,
+      nodeDatum?.cnv_vals?.length || 0,
+      nodeDatum?.snv_vals?.length || 0,
+      nodeDatum?.stage_idx?.length || 0,
+      1
+    );
+  }
+
+  function subsetValuesByIndices(values, indices) {
+    if (!Array.isArray(values)) return [];
+    if (!Array.isArray(indices)) return values.slice();
+
+    return indices.map(i => values[i]);
+  }
+
+  function getDisplaySampleIndices(nodeDatum) {
+    if (!useDifferenceDisplay) return null;
+    if (!Array.isArray(globalDifferenceDisplayIndices)) return [];
+
+    return globalDifferenceDisplayIndices;
+  }
+
+  function getDisplayValues(nodeDatum, values) {
+    const indices = getDisplaySampleIndices(nodeDatum);
+
+    if (!indices) return Array.isArray(values) ? values : [];
+
+    return subsetValuesByIndices(values, indices);
+  }
+
+  function computeGlobalDifferenceDisplayIndices(nodes) {
+    if (!Array.isArray(nodes) || !nodes.length) return [];
+
+    const SAMPLES_PER_STAGE = 8;
+    const omicsTypesForSelection = ['exp', 'mty', 'cnv', 'snv'];
+    const omicsSelectionWeights = { exp: 0.40, mty: 0.40, cnv: 0.15, snv: 0.05 };
+    const EXP_CLASS_THRESHOLD = 1;
+    const MTY_CLASS_THRESHOLD = 1;
+
+    const count = d3.max(nodes, getNodeSampleCount) || 0;
+
+    if (!count) return [];
+
+    function mode(values) {
+      const counts = new Map();
+
+      values.forEach(v => {
+        const n = Math.floor(+v);
+
+        if (!Number.isFinite(n) || n < 0) return;
+
+        counts.set(n, (counts.get(n) || 0) + 1);
+      });
+
+      let best = null;
+      let bestCount = -1;
+
+      counts.forEach((c, k) => {
+        if (c > bestCount || (c === bestCount && (best == null || k < best))) {
+          best = k;
+          bestCount = c;
+        }
+      });
+
+      return best;
+    }
+
+    function sampleClass(expValue, mtyValue) {
+      const expHigh = Number.isFinite(expValue) && expValue >= EXP_CLASS_THRESHOLD;
+      const mtyHigh = Number.isFinite(mtyValue) && mtyValue >= MTY_CLASS_THRESHOLD;
+
+      if (expHigh && mtyHigh) return 'exp_high__mty_high';
+      if (!expHigh && mtyHigh) return 'exp_low__mty_high';
+      if (expHigh && !mtyHigh) return 'exp_high__mty_low';
+
+      return 'exp_low__mty_low';
+    }
+
+    const nodeZCache = new WeakMap();
+
+    function getNodeTypeZArray(node, type) {
+      if (!nodeZCache.has(node)) nodeZCache.set(node, new Map());
+
+      const cache = nodeZCache.get(node);
+
+      if (cache.has(type)) return cache.get(type);
+
+      const zKey = `${type}_z`;
+      const rawKey = `${type}_vals`;
+
+      let arr = [];
+      let alreadyZ = false;
+
+      if (Array.isArray(node?.[zKey])) {
+        arr = node[zKey];
+        alreadyZ = true;
+      } else if (Array.isArray(node?.[rawKey])) {
+        arr = node[rawKey];
+      } else {
+        cache.set(type, []);
+        return [];
+      }
+
+      if (alreadyZ) {
+        const zArr = arr.map(v => {
+          const n = toNum(v);
+          return Number.isFinite(n) ? n : NaN;
+        });
+
+        cache.set(type, zArr);
+
+        return zArr;
+      }
+
+      const nums = arr.map(toNum).filter(Number.isFinite);
+
+      if (nums.length < 2) {
+        const empty = arr.map(() => NaN);
+        cache.set(type, empty);
+        return empty;
+      }
+
+      const stats = meanAndSd(nums);
+
+      const zArr = arr.map(v => {
+        const n = toNum(v);
+
+        if (!Number.isFinite(n) || !Number.isFinite(stats.mean) || !Number.isFinite(stats.sd) || stats.sd === 0) {
+          return NaN;
+        }
+
+        return (n - stats.mean) / stats.sd;
+      });
+
+      cache.set(type, zArr);
+
+      return zArr;
+    }
+
+    function getLocalGeneScore(node, sampleIndex) {
+      let score = 0;
+      let usedWeight = 0;
+
+      omicsTypesForSelection.forEach(type => {
+        const zArr = getNodeTypeZArray(node, type);
+        const z = toNum(zArr[sampleIndex]);
+        const w = omicsSelectionWeights[type] ?? 0;
+
+        if (w > 0 && Number.isFinite(z)) {
+          score += w * Math.abs(z);
+          usedWeight += w;
+        }
+      });
+
+      return usedWeight > 0 ? score / usedWeight : NaN;
+    }
+
+    const sampleRows = [];
+
+    for (let i = 0; i < count; i++) {
+      const stageValues = [];
+
+      nodes.forEach(node => {
+        const arr = Array.isArray(node?.stage_idx) ? node.stage_idx : [];
+        const v = toNum(arr[i]);
+
+        if (Number.isFinite(v)) stageValues.push(v);
+      });
+
+      const stage = mode(stageValues);
+
+      if (stage == null) continue;
+
+      const row = {
+        index: i,
+        stage,
+        globalMeanZ: {},
+        globalMeanAbsZ: {},
+        globalP95AbsZ: {},
+        globalSdZ: {},
+        globalScore: 0,
+        localGeneScores: [],
+        localMeanScore: 0,
+        localP95Score: 0,
+        finalSampleScore: 0,
+        class2d: '',
+      };
+
+      omicsTypesForSelection.forEach(type => {
+        const zValsAcrossGenes = [];
+
+        nodes.forEach(node => {
+          const zArr = getNodeTypeZArray(node, type);
+          const v = toNum(zArr[i]);
+
+          if (Number.isFinite(v)) zValsAcrossGenes.push(v);
+        });
+
+        if (!zValsAcrossGenes.length) {
+          row.globalMeanZ[type] = NaN;
+          row.globalMeanAbsZ[type] = NaN;
+          row.globalP95AbsZ[type] = NaN;
+          row.globalSdZ[type] = NaN;
+          return;
+        }
+
+        const absVals = zValsAcrossGenes.map(v => Math.abs(v));
+        const meanZ = d3.mean(zValsAcrossGenes);
+
+        row.globalMeanZ[type] = Number.isFinite(meanZ) ? meanZ : NaN;
+        row.globalMeanAbsZ[type] = safeMean(absVals);
+        row.globalP95AbsZ[type] = safeQuantile(absVals, 0.95);
+        row.globalSdZ[type] = safeSd(zValsAcrossGenes);
+
+        if (Number.isFinite(meanZ)) {
+          row.globalScore += (omicsSelectionWeights[type] ?? 0) * Math.abs(meanZ);
+        }
+      });
+
+      if (!Number.isFinite(row.globalMeanZ.exp) || !Number.isFinite(row.globalMeanZ.mty)) continue;
+
+      row.class2d = sampleClass(row.globalMeanZ.exp, row.globalMeanZ.mty);
+
+      nodes.forEach(node => {
+        const s = getLocalGeneScore(node, i);
+
+        if (Number.isFinite(s)) row.localGeneScores.push(s);
+      });
+
+      if (!row.localGeneScores.length) continue;
+
+      row.localMeanScore = safeMean(row.localGeneScores);
+      row.localP95Score = safeQuantile(row.localGeneScores, 0.95);
+      row.finalSampleScore =
+        0.45 * row.globalScore +
+        0.30 * row.localMeanScore +
+        0.25 * row.localP95Score;
+
+      if (Number.isFinite(row.finalSampleScore)) sampleRows.push(row);
+    }
+
+    if (!sampleRows.length) return [];
+
+    const stageIds = Array.from(new Set(sampleRows.map(d => d.stage)))
+      .filter(Number.isFinite)
+      .sort(d3.ascending);
+
+    function globalMeanDistance(a, b) {
+      let dist = 0;
+      let usedWeight = 0;
+
+      omicsTypesForSelection.forEach(type => {
+        const av = a.globalMeanZ[type];
+        const bv = b.globalMeanZ[type];
+        const w = omicsSelectionWeights[type] ?? 0;
+
+        if (w > 0 && Number.isFinite(av) && Number.isFinite(bv)) {
+          dist += w * Math.abs(av - bv);
+          usedWeight += w;
+        }
+      });
+
+      return usedWeight > 0 ? dist / usedWeight : 0;
+    }
+
+    function globalRobustFeatureDistance(a, b) {
+      let dist = 0;
+      let usedWeight = 0;
+
+      omicsTypesForSelection.forEach(type => {
+        const w = omicsSelectionWeights[type] ?? 0;
+
+        if (w <= 0) return;
+
+        [
+          ['globalMeanAbsZ', 0.35],
+          ['globalP95AbsZ', 0.30],
+          ['globalSdZ', 0.35],
+        ].forEach(([key, fw]) => {
+          const av = a[key]?.[type];
+          const bv = b[key]?.[type];
+
+          if (Number.isFinite(av) && Number.isFinite(bv)) {
+            dist += w * fw * Math.abs(av - bv);
+            usedWeight += w * fw;
+          }
+        });
+      });
+
+      return usedWeight > 0 ? dist / usedWeight : 0;
+    }
+
+    function localSummaryDistance(a, b) {
+      const parts = [
+        Math.abs((a.localMeanScore || 0) - (b.localMeanScore || 0)),
+        Math.abs((a.localP95Score || 0) - (b.localP95Score || 0)),
+      ].filter(Number.isFinite);
+
+      return parts.length ? d3.mean(parts) : 0;
+    }
+
+    function localGeneVectorDistance(a, b) {
+      const len = Math.min(a.localGeneScores.length, b.localGeneScores.length);
+
+      if (!len) return 0;
+
+      let sum = 0;
+      let used = 0;
+
+      for (let i = 0; i < len; i++) {
+        const av = a.localGeneScores[i];
+        const bv = b.localGeneScores[i];
+
+        if (Number.isFinite(av) && Number.isFinite(bv)) {
+          sum += Math.abs(av - bv);
+          used += 1;
+        }
+      }
+
+      return used ? sum / used : 0;
+    }
+
+    function sampleDistance(a, b) {
+      let dist =
+        0.35 * globalMeanDistance(a, b) +
+        0.25 * globalRobustFeatureDistance(a, b) +
+        0.20 * localSummaryDistance(a, b) +
+        0.20 * localGeneVectorDistance(a, b);
+
+      if (a.class2d !== b.class2d) dist += 0.15;
+
+      return dist;
+    }
+
+    function selectWithinStage(stageSamples, n) {
+      if (!Array.isArray(stageSamples) || !stageSamples.length) return [];
+
+      const candidates = stageSamples.slice().sort((a, b) =>
+        d3.descending(a.finalSampleScore, b.finalSampleScore) ||
+        d3.descending(a.globalScore, b.globalScore) ||
+        d3.descending(a.localP95Score, b.localP95Score) ||
+        d3.ascending(a.index, b.index)
+      );
+
+      const selected = [];
+      const selectedSet = new Set();
+
+      function addSelected(item) {
+        if (!item || selectedSet.has(item.index)) return;
+
+        selected.push(item);
+        selectedSet.add(item.index);
+      }
+
+      addSelected(candidates[0]);
+
+      function minDistanceToSelected(item) {
+        if (!selected.length) return item.finalSampleScore;
+        return d3.min(selected, s => sampleDistance(item, s)) ?? 0;
+      }
+
+      while (selected.length < n && selected.length < candidates.length) {
+        const best = candidates
+          .filter(d => !selectedSet.has(d.index))
+          .map(d => ({ ...d, minDist: minDistanceToSelected(d) }))
+          .sort((a, b) =>
+            d3.descending(a.minDist, b.minDist) ||
+            d3.descending(a.finalSampleScore, b.finalSampleScore) ||
+            d3.descending(a.localP95Score, b.localP95Score) ||
+            d3.ascending(a.index, b.index)
+          )[0];
+
+        addSelected(best);
+      }
+
+      return selected;
+    }
+
+    const selectedAll = [];
+
+    stageIds.forEach(stageId => {
+      const stageSamples = sampleRows.filter(d => d.stage === stageId);
+
+      if (stageSamples.length) {
+        selectedAll.push(...selectWithinStage(stageSamples, SAMPLES_PER_STAGE));
+      }
+    });
+
+    console.table(selectedAll.map(d => ({
+      index: d.index,
+      stage: d.stage,
+      class2d: d.class2d,
+      globalScore: +d.globalScore.toFixed(4),
+      localMeanScore: +d.localMeanScore.toFixed(4),
+      localP95Score: +d.localP95Score.toFixed(4),
+      finalSampleScore: +d.finalSampleScore.toFixed(4),
+      expGlobalMeanZ: Number.isFinite(d.globalMeanZ.exp) ? +d.globalMeanZ.exp.toFixed(4) : null,
+      mtyGlobalMeanZ: Number.isFinite(d.globalMeanZ.mty) ? +d.globalMeanZ.mty.toFixed(4) : null,
+    })));
+
+    return selectedAll.map(d => d.index);
+  }
+
+  function getValueRange(nodes, omicsType) {
+    const key = metricKey(omicsType);
+
+    let allVals = [];
+
+    nodes.forEach(n => {
+      const vals = n[key];
+
+      if (Array.isArray(vals)) {
+        allVals = allVals.concat(vals.map(toNum).filter(Number.isFinite));
+      }
+    });
+
+    const min = d3.min(allVals);
+    const max = d3.max(allVals);
+
+    return [min ?? -1, 0, max ?? 1];
+  }
+
+  function updateValueRangeInputs(nodes) {
+    const omicsType = d3.select('#omicsType').property('value');
+    const [vmin, vzero, vmax] = getValueRange(nodes, omicsType);
+
+    d3.select('#rangeMin').property('value', Number(vmin).toFixed(2));
+    d3.select('#rangeMax').property('value', Number(vmax).toFixed(2));
+
+    colorConfig[omicsType] = d3.scaleLinear()
+      .domain([vmin, vzero, vmax])
+      .range([
+        d3.select(`#${omicsType}Neg`).property('value'),
+        d3.select(`#${omicsType}Zero`).property('value'),
+        d3.select(`#${omicsType}Pos`).property('value')
+      ]);
+  }
+
+  function quantileRange(values, qLow = 0.05, qHigh = 0.95) {
+    const arr = values.map(toNum).filter(Number.isFinite).sort(d3.ascending);
+
+    if (arr.length < 3) return 0;
+
+    const lo = d3.quantileSorted(arr, qLow);
+    const hi = d3.quantileSorted(arr, qHigh);
+
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return 0;
+
+    return hi - lo;
+  }
+
+  function robustNodeRangeZ(node, omicsType, sampleIndices = null) {
+    const vals0 = Array.isArray(node?.[`${omicsType}_vals`]) ? node[`${omicsType}_vals`] : [];
+    const allNums = vals0.map(toNum).filter(Number.isFinite);
+
+    if (allNums.length < 3) return 0;
+
+    const stats = meanAndSd(allNums);
+
+    if (!Number.isFinite(stats.mean) || !Number.isFinite(stats.sd) || stats.sd === 0) return 0;
+
+    const displayVals = Array.isArray(sampleIndices)
+      ? sampleIndices.map(i => vals0[i])
+      : vals0;
+
+    const zVals = displayVals
+      .map(toNum)
+      .filter(Number.isFinite)
+      .map(v => (v - stats.mean) / stats.sd);
+
+    if (zVals.length < 3) return 0;
+
+    return quantileRange(zVals, 0.05, 0.95);
+  }
+
+  function updateAutoNodeFilterStatus(totalNodes, keptNodes, keptEdges) {
+    const el = d3.select('#autoNodeFilterStatus');
+
+    if (el.empty()) return;
+
+    if (!useDifferenceDisplay) {
+      el.text('');
+      return;
+    }
+
+    const expT = +d3.select('#expThresholdValue').property('value');
+    const mtyT = +d3.select('#mtyThresholdValue').property('value');
+
+    el.text(`auto kept ${keptNodes}/${totalNodes} nodes, ${keptEdges} edges | expT=${expT.toFixed(2)}, mtyT=${mtyT.toFixed(2)}`);
+  }
+
+  function setThresholdControlRange(type, minVal, maxVal, preferredValue = null) {
+    const slider = d3.select(`#${type}ThresholdSlider`);
+    const input = d3.select(`#${type}ThresholdValue`);
+
+    if (slider.empty() || input.empty()) return;
+
+    let min = Number.isFinite(minVal) ? minVal : 0;
+    let max = Number.isFinite(maxVal) ? maxVal : 5;
+
+    if (min === max) {
+      const pad = Math.max(0.1, Math.abs(min) * 0.05 || 0.1);
+      min -= pad;
+      max += pad;
+    }
+
+    min = Math.max(0, min);
+    max = Math.max(min + 0.1, max);
+
+    const current = Number(input.property('value'));
+
+    let value = Number.isFinite(preferredValue) ? preferredValue : current;
+
+    if (!Number.isFinite(value)) {
+      value = min + 0.5 * (max - min);
+    }
+
+    value = Math.min(max, Math.max(min, value));
+
+    autoNodeThresholdRanges[type] = { min, max };
+
+    slider
+      .attr('min', min.toFixed(3))
+      .attr('max', max.toFixed(3))
+      .property('min', min.toFixed(3))
+      .property('max', max.toFixed(3))
+      .property('value', value.toFixed(3));
+
+    input
+      .attr('min', min.toFixed(3))
+      .attr('max', max.toFixed(3))
+      .property('min', min.toFixed(3))
+      .property('max', max.toFixed(3))
+      .property('value', value.toFixed(3));
+  }
+
+  function updateThresholdRangesFromScoredNodes(scoredNodes) {
+    const expRanges = scoredNodes.map(n => n._autoExpRange).filter(Number.isFinite);
+    const mtyRanges = scoredNodes.map(n => n._autoMtyRange).filter(Number.isFinite);
+
+    if (!expRanges.length || !mtyRanges.length) return;
+
+    const expCurrent = +d3.select('#expThresholdValue').property('value');
+    const mtyCurrent = +d3.select('#mtyThresholdValue').property('value');
+
+    setThresholdControlRange('exp', d3.min(expRanges), d3.max(expRanges), expCurrent);
+    setThresholdControlRange('mty', d3.min(mtyRanges), d3.max(mtyRanges), mtyCurrent);
+  }
+
+  function applyAutoNodeFilterByDisplayedSamples(data, sampleIndices) {
+    if (!useDifferenceDisplay || !Array.isArray(sampleIndices) || !sampleIndices.length) {
+      autoNodeFilterInfo = [];
+      updateAutoNodeFilterStatus(data.nodes?.length || 0, data.nodes?.length || 0, data.edges?.length || 0);
+      return data;
+    }
+
+    const expThreshold = Math.max(0, +d3.select('#expThresholdValue').property('value') || 0);
+    const mtyThreshold = Math.max(0, +d3.select('#mtyThresholdValue').property('value') || 0);
+
+    const scoredNodes = (data.nodes || []).map(node => {
+      const expRange = robustNodeRangeZ(node, 'exp', sampleIndices);
+      const mtyRange = robustNodeRangeZ(node, 'mty', sampleIndices);
+      const cnvRange = robustNodeRangeZ(node, 'cnv', sampleIndices);
+      const snvRange = robustNodeRangeZ(node, 'snv', sampleIndices);
+      const score = 0.4 * expRange + 0.4 * mtyRange + 0.15 * cnvRange + 0.05 * snvRange;
+
+      return {
+        ...node,
+        _autoExpRange: expRange,
+        _autoMtyRange: mtyRange,
+        _autoCnvRange: cnvRange,
+        _autoSnvRange: snvRange,
+        _autoNodeScore: score
+      };
+    });
+
+    updateThresholdRangesFromScoredNodes(scoredNodes);
+
+    const keptNodes = scoredNodes
+      .filter(node => node._autoExpRange >= expThreshold && node._autoMtyRange >= mtyThreshold)
+      .sort((a, b) =>
+        d3.descending(a._autoNodeScore, b._autoNodeScore) ||
+        d3.descending(Math.min(a._autoExpRange, a._autoMtyRange), Math.min(b._autoExpRange, b._autoMtyRange)) ||
+        d3.ascending(String(a.id), String(b.id))
+      );
+
+    const keptIds = new Set(keptNodes.map(n => getId(n.id)));
+
+    const keptEdges = (data.edges || []).filter(edge =>
+      keptIds.has(getId(edge.source)) && keptIds.has(getId(edge.target))
+    );
+
+    autoNodeFilterInfo = keptNodes.map(node => ({
+      id: getId(node.id),
+      expRange: node._autoExpRange,
+      mtyRange: node._autoMtyRange,
+      cnvRange: node._autoCnvRange,
+      snvRange: node._autoSnvRange,
+      score: node._autoNodeScore,
+    }));
+
+    console.table(autoNodeFilterInfo);
+
+    updateAutoNodeFilterStatus(data.nodes?.length || 0, keptNodes.length, keptEdges.length);
+
+    return {
+      nodes: keptNodes,
+      edges: keptEdges
+    };
+  }
+
+  function setEdgeRangeInputs(edges) {
+    const vals = edges.map(getCurrentEdgeWeight).filter(Number.isFinite);
+
+    if (!vals.length) return;
+
+    let emin = d3.min(vals);
+    let emax = d3.max(vals);
+
+    if (emin === emax) {
+      const pad = Math.max(1e-8, Math.abs(emin) * 0.01 || 0.01);
+      emin -= pad;
+      emax += pad;
+    }
+
+    const safeMin = Math.floor(emin * EDGE_SCALE) / EDGE_SCALE;
+    const safeMax = Math.ceil(emax * EDGE_SCALE) / EDGE_SCALE;
+
+    d3.select('#eRangeMin').property('value', safeMin.toFixed(EDGE_DECIMALS));
+    d3.select('#eRangeMax').property('value', safeMax.toFixed(EDGE_DECIMALS));
+  }
+
+  function getEdgeRangeInput() {
+    let eMin = +d3.select('#eRangeMin').property('value');
+    let eMax = +d3.select('#eRangeMax').property('value');
+
+    if (!Number.isFinite(eMin)) eMin = -Infinity;
+    if (!Number.isFinite(eMax)) eMax = Infinity;
+
+    if (eMin > eMax) [eMin, eMax] = [eMax, eMin];
+
+    return [eMin, eMax];
+  }
+
+  function edgePassesRange(edge) {
+    if (!edgeFilterApplied) return true;
+
+    const w = getCurrentEdgeWeight(edge);
+
+    if (!Number.isFinite(w)) return false;
+
+    const [eMin, eMax] = getEdgeRangeInput();
+    const eps = EDGE_EPS;
+
+    return w >= eMin - eps && w <= eMax + eps;
+  }
+
+  function renderStageLegend() {
+    const container = d3.select('#stageLegend');
+
+    if (container.empty()) return;
+
+    container.selectAll('*').remove();
+
+    const wrap = container.append('div')
+      .style('display', 'inline-flex')
+      .style('gap', '14px')
+      .style('align-items', 'center')
+      .style('flex-wrap', 'wrap');
+
+    const present = new Set();
+
+    if (currentData?.nodes?.length) {
+      currentData.nodes.forEach(n => {
+        const arr0 = Array.isArray(n.stage_idx) ? n.stage_idx : [];
+        const arr = getDisplayValues(n, arr0);
+
+        arr.forEach(v => {
+          const x = Math.floor(+v);
+
+          if (Number.isFinite(x) && x >= 0) {
+            present.add(x % STAGE_IDS.length);
+          }
+        });
+      });
+    }
+
+    STAGE_IDS.forEach(i => {
+      const hasData = present.has(i);
+      const color = stageColorMap.get(i) || DEFAULT_STAGE_COLORS[i];
+
+      const row = wrap.append('label')
+        .style('display', 'inline-flex')
+        .style('align-items', 'center')
+        .style('gap', '8px');
+
+      row.append('span')
+        .text(`group ${i}`)
+        .style('opacity', hasData ? 1 : 0.45);
+
+      row.append('input')
+        .attr('type', 'color')
+        .attr('id', `stageColor-${i}`)
+        .attr('value', color)
+        .property('value', color)
+        .property('disabled', !hasData)
+        .style('width', '28px')
+        .style('height', '28px')
+        .style('padding', '0')
+        .style('border', '1px solid #ccc')
+        .style('cursor', hasData ? 'pointer' : 'not-allowed')
+        .style('filter', hasData ? null : 'grayscale(100%) brightness(0.85)')
+        .style('opacity', hasData ? 1 : 0.7)
+        .on('input', function () {
+          if (!hasData) return;
+          setStageColor(i, this.value);
+          updateStyles();
+        })
+        .on('change', function () {
+          if (!hasData) return;
+          setStageColor(i, this.value);
+          updateStyles();
+        });
+    });
+  }
+
+  function computeLayoutOnce(data) {
+    const box = document.getElementById('networkViz').getBoundingClientRect();
+    const width = box.width || window.innerWidth;
+    const height = box.height || (window.innerHeight - 165);
+
+    const nodes = data.nodes;
+
+    const edgesForLayout = data.edges.map(e => ({
+      ...e,
+      source: getId(e.source),
+      target: getId(e.target),
+    }));
+
+    const sim = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(edgesForLayout).id(d => getId(d.id)).distance(80))
+      .force('charge', d3.forceManyBody().strength(-90))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(NODE_SIZE * 0.48))
+      .alphaDecay(0.05)
+      .velocityDecay(0.90)
+      .alphaMin(0.001);
+
+    for (let i = 0; i < 220; ++i) sim.tick();
+
+    sim.stop();
+
+    nodes.forEach((n, i) => {
+      if (typeof n.x !== 'number' || typeof n.y !== 'number') {
+        n.x = width / 2 + 140 * Math.cos(2 * Math.PI * i / Math.max(nodes.length, 1));
+        n.y = height / 2 + 140 * Math.sin(2 * Math.PI * i / Math.max(nodes.length, 1));
+      }
+    });
+  }
+
+  function buildFilteredCommunity(raw, dmin, dmax) {
+    const nodesById = new Map(raw.nodes.map(n => [getId(n.id), n]));
+
+    const inRangeIds = new Set(
+      raw.nodes
+        .filter(n => Number(n.degree ?? 0) >= dmin && Number(n.degree ?? 0) <= dmax)
+        .map(n => getId(n.id))
+    );
+
+    const highNeighborIds = new Set();
+
+    raw.edges.forEach(e => {
+      const sId = getId(e.source);
+      const tId = getId(e.target);
+      const sNode = nodesById.get(sId);
+      const tNode = nodesById.get(tId);
+
+      if (!sNode || !tNode) return;
+
+      const sIn = inRangeIds.has(sId);
+      const tIn = inRangeIds.has(tId);
+
+      if (sIn && Number(tNode.degree ?? 0) > dmax) highNeighborIds.add(tId);
+      if (tIn && Number(sNode.degree ?? 0) > dmax) highNeighborIds.add(sId);
+    });
+
+    const usedIdSet = new Set([...inRangeIds, ...highNeighborIds]);
+
+    const nodesUsed = raw.nodes
+      .filter(n => usedIdSet.has(getId(n.id)))
+      .map(n => ({ ...n, id: getId(n.id) }));
+
+    const edgesUsed = raw.edges
+      .filter(e => {
+        const sId = getId(e.source);
+        const tId = getId(e.target);
+        return usedIdSet.has(sId) && usedIdSet.has(tId);
+      })
+      .map((e, idx) => ({
+        ...e,
+        id: e.id ? String(e.id) : `e-${getId(e.source)}-${getId(e.target)}-${idx}`,
+        source: getId(e.source),
+        target: getId(e.target),
+      }));
+
+    console.log('[filtered community]', {
+      community: raw.comm,
+      rawNodes: raw.nodes.length,
+      rawEdges: raw.edges.length,
+      keptNodes: nodesUsed.length,
+      keptEdges: edgesUsed.length,
+      degreeRange: [dmin, dmax],
+    });
+
+    return { nodes: nodesUsed, edges: edgesUsed };
+  }
+
+  function sanitizeForG6(data) {
+    const nodes = (data.nodes || []).map(n => ({
+      ...n,
+      id: endpointId(n.id),
+    }));
+
+    const nodeIdSet = new Set(nodes.map(n => n.id));
+
+    const edges = (data.edges || []).map((e, idx) => {
+      const source = endpointId(e.source);
+      const target = endpointId(e.target);
+      const id = e.id ? String(e.id) : `e-${source}-${target}-${idx}`;
+      const valid = source && target && nodeIdSet.has(source) && nodeIdSet.has(target);
+
+      if (!valid) return null;
+
+      return {
+        ...e,
+        id,
+        source,
+        target,
+      };
+    }).filter(Boolean);
+
+    return { nodes, edges };
+  }
+
+  function getCanonicalUndirectedPair(source, target) {
+    const a = String(source);
+    const b = String(target);
+    return a <= b ? [a, b] : [b, a];
+  }
+
+  function combineEdgesToUndirected(data) {
+    const nodes = data.nodes || [];
+    const pairMap = new Map();
+
+    (data.edges || []).forEach((edge, idx) => {
+      const [a, b] = getCanonicalUndirectedPair(edge.source, edge.target);
+      const key = `${a}|${b}`;
+
+      if (!pairMap.has(key)) {
+        pairMap.set(key, {
+          source: a,
+          target: b,
+          edges: [],
+          firstIndex: idx,
+        });
+      }
+
+      pairMap.get(key).edges.push(edge);
+    });
+
+    const numericFields = [
+      'w_raw',
+      'w_norm',
+      'w_z',
+      'weight',
+      'pearson',
+      'pearson_r',
+      'corr',
+      'correlation',
+      'r'
+    ];
+
+    const mergedEdges = Array.from(pairMap.values()).map((group, idx) => {
+      const first = group.edges[0] || {};
+      const merged = {
+        ...first,
+        id: `u-${group.source}-${group.target}-${idx}`,
+        source: group.source,
+        target: group.target,
+        directed_edge_count: group.edges.length,
+        original_directed_edges: group.edges.map(e => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          w_raw: toNum(e.w_raw),
+          w_norm: toNum(e.w_norm),
+          w_z: toNum(e.w_z),
+          weight: toNum(e.weight),
+          pearson: toNum(e.pearson ?? e.pearson_r ?? e.corr ?? e.correlation ?? e.r),
+          interact_id: e.interact_id,
+        })),
+      };
+
+      numericFields.forEach(field => {
+        let sum = 0;
+        let used = 0;
+
+        group.edges.forEach(edge => {
+          const v = toNum(edge?.[field]);
+          if (Number.isFinite(v)) {
+            sum += v;
+            used += 1;
+          }
+        });
+
+        if (used > 0) merged[field] = sum;
+      });
+
+      const interactIds = Array.from(new Set(
+        group.edges
+          .map(e => e.interact_id)
+          .filter(v => v !== undefined && v !== null && v !== '')
+          .map(String)
+      ));
+
+      if (interactIds.length === 1) {
+        merged.interact_id = interactIds[0];
+      } else if (interactIds.length > 1) {
+        merged.interact_id = `mixed:${interactIds.sort().join('|')}`;
+      }
+
+      const rawWeights = group.edges
+        .map(e => {
+          const metricVal = toNum(e?.w_raw);
+          const pearsonVal = toNum(e?.pearson ?? e?.pearson_r ?? e?.corr ?? e?.correlation ?? e?.r);
+          const weightVal = toNum(e?.weight);
+          if (Number.isFinite(metricVal)) return metricVal;
+          if (Number.isFinite(pearsonVal)) return pearsonVal;
+          if (Number.isFinite(weightVal)) return weightVal;
+          return NaN;
+        })
+        .filter(Number.isFinite);
+
+      merged._undirected_raw_sum = rawWeights.length ? d3.sum(rawWeights) : 0;
+      merged._undirected_negative_count = rawWeights.filter(v => v < 0).length;
+      merged._undirected_positive_count = rawWeights.filter(v => v > 0).length;
+      merged._undirected_zero_count = rawWeights.filter(v => v === 0).length;
+
+      return merged;
+    });
+
+    console.log('[undirected merge]', {
+      nodes: nodes.length,
+      directedEdgesIn: data.edges?.length || 0,
+      undirectedEdgesOut: mergedEdges.length,
+      rule: 'Edges with the same two endpoints are merged. Numeric edge fields are algebraically summed. Final sign is determined by the summed selected edge metric.',
+    });
+
+    return { nodes, edges: mergedEdges };
+  }
+
+  function assignEdgePorts(nodes, edges) {
+    const nodeMap = new Map(nodes.map(n => [String(n.id), n]));
+
+    edges.forEach(edge => {
+      const s = nodeMap.get(String(edge.source));
+      const t = nodeMap.get(String(edge.target));
+
+      if (!s || !t) {
+        edge._sourcePort = 'p0';
+        edge._targetPort = 'p36';
+        return;
+      }
+
+      if (String(edge.source) === String(edge.target)) {
+        edge._sourcePort = getNearestPortKeyByAngle(0);
+        edge._targetPort = getNearestPortKeyByAngle(-Math.PI / 2);
+        return;
+      }
+
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+
+      const sourceAngle = Math.atan2(dy, dx);
+      const targetAngle = Math.atan2(-dy, -dx);
+
+      edge._sourcePort = getNearestPortKeyByAngle(sourceAngle);
+      edge._targetPort = getNearestPortKeyByAngle(targetAngle);
+    });
+  }
+
+  function annotateEdgeGeometry(edges) {
+    const pairMap = new Map();
+
+    edges.forEach(e => {
+      const s = String(e.source);
+      const t = String(e.target);
+      const key = s <= t ? `${s}|${t}` : `${t}|${s}`;
+
+      if (!pairMap.has(key)) pairMap.set(key, []);
+      pairMap.get(key).push(e);
+    });
+
+    function markStraight(e) {
+      e._edgeType = 'line';
+      e._curvePosition = 0.5;
+      e._curveOffset = 0;
+    }
+
+    function markCurved(e, offset) {
+      e._edgeType = 'quadratic';
+      e._curvePosition = 0.5;
+      e._curveOffset = offset;
+    }
+
+    function buildCenteredOffsets(count, step) {
+      if (count <= 0) return [];
+      if (count === 1) return [0];
+
+      const out = [0];
+      let level = 1;
+
+      while (out.length < count) {
+        out.push(level * step);
+        if (out.length < count) out.push(-level * step);
+        level += 1;
+      }
+
+      return out.slice(0, count);
+    }
+
+    function buildOneSideOffsets(count, baseGap, step) {
+      return Array.from({ length: count }, (_, i) => baseGap + i * step);
+    }
+
+    pairMap.forEach((list, key) => {
+      const [a, b] = key.split('|');
+
+      if (a === b) {
+        const offsets = buildOneSideOffsets(list.length, 18, SELF_LOOP_STEP);
+        list.forEach((e, i) => markCurved(e, offsets[i]));
+        return;
+      }
+
+      const ab = list.filter(e => String(e.source) === a && String(e.target) === b);
+      const ba = list.filter(e => String(e.source) === b && String(e.target) === a);
+
+      if (list.length === 1) {
+        markStraight(list[0]);
+        return;
+      }
+
+      if (ab.length > 0 && ba.length > 0) {
+        const abOffsets = buildOneSideOffsets(ab.length, OPPOSITE_EDGE_GAP, PARALLEL_EDGE_STEP);
+        const baOffsets = buildOneSideOffsets(ba.length, OPPOSITE_EDGE_GAP, PARALLEL_EDGE_STEP);
+
+        ab.forEach((e, i) => markCurved(e, abOffsets[i]));
+        ba.forEach((e, i) => markCurved(e, baOffsets[i]));
+
+        return;
+      }
+
+      const arr = ab.length ? ab : ba;
+      const offsets = buildCenteredOffsets(arr.length, PARALLEL_EDGE_STEP);
+
+      arr.forEach((e, i) => {
+        const off = offsets[i];
+
+        if (off === 0) markStraight(e);
+        else markCurved(e, off);
+      });
+    });
+  }
+
+  function rebuildFocusIndex(data) {
+    neighborMap = new Map();
+
+    (data.nodes || []).forEach(n => {
+      neighborMap.set(String(n.id), new Set());
+    });
+
+    (data.edges || []).forEach(e => {
+      const s = String(e.source);
+      const t = String(e.target);
+
+      if (!neighborMap.has(s)) neighborMap.set(s, new Set());
+      if (!neighborMap.has(t)) neighborMap.set(t, new Set());
+
+      neighborMap.get(s).add(t);
+      neighborMap.get(t).add(s);
+    });
+  }
+
+  function isNodeFocusedOrNeighbor(nodeId) {
+    if (!focusedNodeId) return true;
+
+    const id = String(nodeId);
+
+    if (id === focusedNodeId) return true;
+
+    return neighborMap.get(focusedNodeId)?.has(id) || false;
+  }
+
+  function isEdgeFocused(edge) {
+    if (!focusedNodeId) return true;
+
+    const s = String(edge.source);
+    const t = String(edge.target);
+
+    return s === focusedNodeId || t === focusedNodeId;
+  }
+
+  function strokeArc(ctx, cx, cy, inner, width, start, end, color, alpha = 1) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, inner + width / 2, start, end);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'butt';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function renderNodeSprite(nodeDatum) {
+    const canvas = createOffscreen(SPRITE_SIZE);
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, SPRITE_SIZE, SPRITE_SIZE);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    ctx.save();
+    ctx.font = `bold ${20 * SPRITE_SCALE}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4 * SPRITE_SCALE;
+    ctx.strokeStyle = 'rgba(255,255,255,0.97)';
+    ctx.fillStyle = '#222';
+
+    const label = String(nodeDatum.id || '');
+    const clipped = label.length > 18 ? `${label.slice(0, 16)}…` : label;
+
+    ctx.strokeText(clipped, CX, 24 * SPRITE_SCALE);
+    ctx.fillText(clipped, CX, 24 * SPRITE_SCALE);
+    ctx.restore();
+
+    const omicsTypeSelected = d3.select('#omicsType').property('value');
+    const rmin = +d3.select('#rangeMin').property('value');
+    const rmax = +d3.select('#rangeMax').property('value');
+
+    const displayIndices = getDisplaySampleIndices(nodeDatum);
+
+    const sampleCount = displayIndices
+      ? Math.max(displayIndices.length, 1)
+      : Math.max(
+          nodeDatum.exp_vals?.length || 0,
+          nodeDatum.mty_vals?.length || 0,
+          nodeDatum.cnv_vals?.length || 0,
+          nodeDatum.snv_vals?.length || 0,
+          nodeDatum.stage_idx?.length || 0,
+          1
+        );
+
+    const angleStep = 2 * Math.PI / sampleCount;
+
+    const rings = RING_LAYOUT.map(ring => {
+      if (ring.type === 'stage') {
+        const vals0 = Array.isArray(nodeDatum.stage_idx) ? nodeDatum.stage_idx : [];
+
+        return {
+          ...ring,
+          vals: getDisplayValues(nodeDatum, vals0),
+          scale: null
+        };
+      }
+
+      const key = metricKey(ring.type);
+      const vals0 = Array.isArray(nodeDatum[key]) ? nodeDatum[key] : [];
+
+      return {
+        ...ring,
+        vals: getDisplayValues(nodeDatum, vals0),
+        scale: colorConfig[ring.type],
+      };
+    }).filter(r => Array.isArray(r.vals));
+
+    ctx.save();
+    ctx.strokeStyle = '#e8e8e8';
+    ctx.lineWidth = 1.4 * SPRITE_SCALE;
+
+    rings.forEach(r => {
+      ctx.beginPath();
+      ctx.arc(CX, CY, r.inner + RING_W / 2, 0, 2 * Math.PI);
+      ctx.stroke();
+    });
+
+    ctx.restore();
+
+    rings.forEach(ring => {
+      const isSelectedOmics = ring.type === omicsTypeSelected;
+      const isStage = ring.type === 'stage';
+      const vals = ring.vals.length ? ring.vals : new Array(sampleCount).fill(null);
+
+      vals.forEach((v, i) => {
+        const start = -Math.PI / 2 + i * angleStep;
+        const end = -Math.PI / 2 + (i + 1) * angleStep;
+        const numV = toNum(v);
+
+        if (!Number.isFinite(numV)) return;
+
+        let fill = 'transparent';
+        let alpha = 1;
+
+        if (isStage) {
+          fill = getStageColorByIndex(numV);
+          alpha = fill === 'transparent' ? 0 : 1;
+        } else {
+          const inRange = numV >= rmin && numV <= rmax;
+          fill = (isSelectedOmics && !inRange) ? '#CCCCCC' : ring.scale(numV);
+          alpha = (!isSelectedOmics) ? 1 : (inRange ? 1 : 0.28);
+        }
+
+        strokeArc(ctx, CX, CY, ring.inner, RING_W, start, end, fill, alpha);
+      });
+    });
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(CX, CY, RING_W + 1.5 * SPRITE_SCALE, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#777';
+    ctx.lineWidth = 1 * SPRITE_SCALE;
+    ctx.stroke();
+    ctx.restore();
+
+    return canvasToDataURL(canvas);
+  }
+
+  function rebuildNodeSpritesIfNeeded() {
+    if (!currentData || !spriteDirty) return;
+
+    currentData.nodes.forEach(node => {
+      node._sprite = renderNodeSprite(node);
+    });
+
+    spriteDirty = false;
+  }
+
+  function computeNodeStyleUpdates(nodes) {
+    rebuildNodeSpritesIfNeeded();
+
+    const omicsType = d3.select('#omicsType').property('value');
+    const key = metricKey(omicsType);
+    const rmin = +d3.select('#rangeMin').property('value');
+    const rmax = +d3.select('#rangeMax').property('value');
+
+    nodes.forEach(n => {
+      const vals0 = Array.isArray(n[key]) ? n[key] : [];
+      const vals = getDisplayValues(n, vals0);
+
+      n._highlight = Array.isArray(vals) && vals.some(v => {
+        const x = toNum(v);
+        return Number.isFinite(x) && x >= rmin && x <= rmax;
+      });
+    });
+
+    return nodes.map(node => {
+      const related = isNodeFocusedOrNeighbor(node.id);
+      let opacity = node._highlight ? 1 : 0.35;
+
+      if (focusedNodeId) {
+        if (related) opacity = Math.max(opacity, 1);
+        else opacity = 0.15;
+      }
+
+      return {
+        id: node.id,
+        style: {
+          x: node.x,
+          y: node.y,
+          size: [NODE_SIZE, NODE_SIZE],
+          cursor: 'pointer',
+          port: true,
+          portLineWidth: 0,
+          portStroke: 'transparent',
+          src: node._sprite,
+          opacity,
+          zIndex: 20
+        },
+      };
+    });
+  }
+
+  function computeEdgeStyleUpdates(edges) {
+    const C_NEG = d3.select('#edgeNeg').property('value') || '#00FF00';
+    const C_ZERO = d3.select('#edgeZero').property('value') || '#D0D0D0';
+    const C_POS = d3.select('#edgePos').property('value') || '#FF00FF';
+
+    edges.forEach(e => {
+      e._w = getCurrentEdgeWeight(e);
+    });
+
+    const weights = edges.map(e => e._w).filter(Number.isFinite);
+    const negWeights = weights.filter(v => v < 0);
+    const posWeights = weights.filter(v => v > 0);
+
+    const negAbsMax = d3.max(negWeights.map(v => Math.abs(v))) ?? 1;
+    const posAbsMax = d3.max(posWeights.map(v => Math.abs(v))) ?? 1;
+
+    const negWidthScale = d3.scaleSqrt()
+      .domain([0, negAbsMax || 1])
+      .range([2.2, 9.0])
+      .clamp(true);
+
+    const posWidthScale = d3.scaleSqrt()
+      .domain([0, posAbsMax || 1])
+      .range([2.2, 9.0])
+      .clamp(true);
+
+    const negColorScale = d3.scaleLinear()
+      .domain([0, negAbsMax || 1])
+      .range(['#D8FFD8', C_NEG])
+      .clamp(true);
+
+    const posColorScale = d3.scaleLinear()
+      .domain([0, posAbsMax || 1])
+      .range(['#FFD8FF', C_POS])
+      .clamp(true);
+
+    let interactColorById = null;
+
+    if (useInteractMode) {
+      const ids = Array.from(new Set(
+        edges
+          .filter(e => e.interact_id !== undefined && e.interact_id !== null && e.interact_id !== '')
+          .map(e => e.interact_id)
+      ));
+
+      interactColorById = new Map();
+
+      ids.forEach((id, i) => {
+        interactColorById.set(id, INTERACT_COLORS[i % INTERACT_COLORS.length]);
+      });
+    }
+
+    function baseColor(edge) {
+      const v = edge._w;
+
+      if (!Number.isFinite(v)) return '#CCCCCC';
+      if (v < 0) return negColorScale(Math.abs(v));
+      if (v > 0) return posColorScale(Math.abs(v));
+
+      return C_ZERO;
+    }
+
+    function edgeStroke(edge) {
+      if (useInteractMode) {
+        const c = interactColorById?.get(edge.interact_id);
+        return c || baseColor(edge);
+      }
+
+      return baseColor(edge);
+    }
+
+    function colorToRgba(color, alpha) {
+      const c = d3.color(color);
+      if (!c) return undefined;
+      c.opacity = alpha;
+      return c.formatRgb();
+    }
+
+    return edges.map(edge => {
+      const related = isEdgeFocused(edge);
+      const isNeg = Number.isFinite(edge._w) && edge._w < 0;
+      const isPos = Number.isFinite(edge._w) && edge._w > 0;
+      const isZero = Number.isFinite(edge._w) && edge._w === 0;
+      const strength = Math.abs(edge._w || 0);
+
+      let stroke = edgeStroke(edge);
+      let opacity = 1;
+      let lineWidth = 1.2;
+
+      if (isNeg) {
+        lineWidth = Math.max(negWidthScale(strength), 3.4);
+      } else if (isPos) {
+        lineWidth = Math.max(posWidthScale(strength), 2.2);
+      } else if (isZero) {
+        lineWidth = 1.2;
+        opacity = 0.75;
+      }
+
+      if (focusedNodeId) {
+        if (related) {
+          opacity = 1;
+          lineWidth += 1.0;
+        } else {
+          opacity = 0.10;
+        }
+      }
+
+      const arrowSize = Math.max(8, Math.min(20, lineWidth * 1.8));
+      const labelText = showEdgeLabels ? formatWeight(edge._w) : '';
+      const hasInteractColor = useInteractMode && interactColorById?.has(edge.interact_id);
+      const shadowColor = hasInteractColor
+        ? colorToRgba(stroke, 0.35)
+        : isNeg
+          ? 'rgba(0, 255, 0, 0.45)'
+          : isPos
+            ? 'rgba(255, 0, 255, 0.22)'
+            : undefined;
+
+      return {
+        id: edge.id,
+        sourcePort: edge._sourcePort || 'p0',
+        targetPort: edge._targetPort || 'p36',
+        type: edge._edgeType || 'line',
+        style: {
+          stroke,
+          strokeOpacity: opacity,
+          lineWidth,
+          lineCap: 'round',
+          lineJoin: 'round',
+          increasedLineWidthForHitTesting: Math.max(14, lineWidth + 12),
+
+          shadowColor,
+
+          shadowBlur: (isNeg || isPos || hasInteractColor) ? Math.min(14, lineWidth * 1.6) : 0,
+          shadowOffsetX: 0,
+          shadowOffsetY: 0,
+
+          endArrow: false,
+          endArrowType: 'vee',
+          endArrowSize: arrowSize,
+          endArrowFill: stroke,
+          endArrowStroke: stroke,
+          endArrowStrokeOpacity: opacity,
+
+          curveOffset: edge._curveOffset || 0,
+          curvePosition: edge._curvePosition ?? 0.5,
+
+          labelText,
+          labelFill: '#111',
+          labelFontSize: 11,
+          labelFontWeight: 700,
+          labelPlacement: 'center',
+          labelBackground: false,
+          labelBackgroundFill: 'transparent',
+          labelBackgroundRadius: 0,
+          labelBackgroundPadding: [0, 0, 0, 0],
+
+          zIndex: isNeg
+            ? 999999 + Math.round(strength * 100000)
+            : isPos
+              ? 1000 + Math.round(strength * 1000)
+              : 10,
+        },
+      };
+    });
+  }
+
+  function buildNodeUpdates() {
+    return computeNodeStyleUpdates(currentData.nodes);
+  }
+
+  function buildEdgeUpdates() {
+    return computeEdgeStyleUpdates(currentData.edges.filter(edgePassesRange));
+  }
+
+  function buildG6Data(data) {
+    annotateEdgeGeometry(data.edges);
+    assignEdgePorts(data.nodes, data.edges);
+
+    data.edges.forEach(e => {
+      e._w_for_sort = getCurrentEdgeWeight(e);
+    });
+
+    const sortedEdges = data.edges
+      .filter(edgePassesRange)
+      .slice()
+      .sort((a, b) => {
+        const aw = Math.abs(a._w_for_sort || 0);
+        const bw = Math.abs(b._w_for_sort || 0);
+
+        const aSignGroup = a._w_for_sort < 0 ? 2 : a._w_for_sort > 0 ? 1 : 0;
+        const bSignGroup = b._w_for_sort < 0 ? 2 : b._w_for_sort > 0 ? 1 : 0;
+
+        return d3.ascending(aSignGroup, bSignGroup) || d3.ascending(aw, bw);
+      });
+
+    const nodeStyleMap = new Map(
+      computeNodeStyleUpdates(data.nodes).map(item => [item.id, item.style])
+    );
+
+    const edgeStyleMap = new Map(
+      computeEdgeStyleUpdates(sortedEdges).map(item => [item.id, item])
+    );
+
+    return {
+      nodes: data.nodes.map(node => ({
+        id: node.id,
+        type: 'image',
+        data: { ...node },
+        ports: getNodePorts(),
+        style: {
+          x: node.x,
+          y: node.y,
+          size: [NODE_SIZE, NODE_SIZE],
+          cursor: 'pointer',
+          port: true,
+          portLineWidth: 0,
+          portStroke: 'transparent',
+          ...(nodeStyleMap.get(node.id) || {
+            src: node._sprite || renderNodeSprite(node),
+            opacity: 1,
+          }),
+        },
+      })),
+
+      edges: sortedEdges.map(edge => {
+        const item = edgeStyleMap.get(edge.id);
+
+        return {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourcePort: edge._sourcePort || 'p0',
+          targetPort: edge._targetPort || 'p36',
+          type: edge._edgeType || 'line',
+          data: {
+            ...edge,
+            edgeType: edge._edgeType || 'line',
+            curveOffset: edge._curveOffset || 0,
+            curvePosition: edge._curvePosition ?? 0.5,
+          },
+          style: {
+            ...(item?.style || {}),
+            curveOffset: edge._curveOffset || 0,
+            curvePosition: edge._curvePosition ?? 0.5,
+          },
+        };
+      }),
+    };
+  }
+
+  function getEventNodeId(evt) {
+    return String(
+      evt?.target?.id ??
+      evt?.target?.attributes?.id ??
+      evt?.item?.id ??
+      evt?.itemId ??
+      ''
+    );
+  }
+
+  function clearFocus() {
+    if (!focusedNodeId) return;
+
+    focusedNodeId = null;
+    updateStyles();
+  }
+
+  function syncCurrentNodePositionsFromGraph() {
+    if (!graph || !currentData) return;
+
+    try {
+      const nodeData = graph.getNodeData();
+
+      const posMap = new Map(
+        nodeData.map(n => [
+          String(n.id),
+          { x: n.style?.x, y: n.style?.y }
+        ])
+      );
+
+      currentData.nodes.forEach(n => {
+        const p = posMap.get(String(n.id));
+
+        if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+          n.x = p.x;
+          n.y = p.y;
+        }
+      });
+    } catch (err) {
+      console.warn('syncCurrentNodePositionsFromGraph failed:', err);
+    }
+  }
+
+  async function refreshGraphData({ fit = false } = {}) {
+    if (!graph || !currentData) return;
+
+    const g6data = buildG6Data(currentData);
+
+    graph.setData(g6data);
+
+    await Promise.resolve(graph.render());
+
+    updateStyles();
+
+    if (fit) {
+      await graph.fitView({
+        when: 'always',
+        direction: 'both',
+        padding: 8,
+      });
+    }
+  }
+
+  function ensureGraph() {
+    if (graph) return graph;
+
+    graph = new Graph({
+      container: 'networkViz',
+      autoResize: true,
+      background: '#fff',
+      enableStack: true,
+      padding: 8,
+      animation: false,
+      autoFit: 'view',
+      zoomRange: [0.15, 8],
+      devicePixelRatio: Math.min((window.devicePixelRatio || 2) * 2, 6),
+
+      node: {
+        type: 'image',
+      },
+
+      edge: {
+        type: datum => datum?.data?.edgeType || 'line',
+        style: {
+          lineCap: 'round',
+          lineJoin: 'round',
+          increasedLineWidthForHitTesting: 12,
+          endArrow: false,
+          endArrowType: 'vee',
+          curveOffset: datum => datum?.data?.curveOffset || 0,
+          curvePosition: datum => datum?.data?.curvePosition ?? 0.5,
+          labelPlacement: 'center',
+        },
+      },
+
+      behaviors: [
+        { type: 'drag-canvas', key: 'drag-canvas' },
+        { type: 'zoom-canvas', key: 'zoom-canvas' },
+        { type: 'drag-element', key: 'drag-element', enable: event => event.targetType === 'node' },
+        { type: 'optimize-viewport-transform', key: 'optimize' },
+      ],
+    });
+
+    graph.on('node:click', evt => {
+      const id = getEventNodeId(evt);
+
+      if (!id) return;
+
+      focusedNodeId = id;
+      updateStyles();
+    });
+
+    graph.on('node:dblclick', clearFocus);
+    graph.on('canvas:click', clearFocus);
+    graph.on('canvas:dblclick', clearFocus);
+
+    graph.on('node:dragend', () => {
+      syncCurrentNodePositionsFromGraph();
+
+      if (currentData) {
+        assignEdgePorts(currentData.nodes, currentData.edges);
+        annotateEdgeGeometry(currentData.edges);
+      }
+
+      updateStyles();
+    });
+
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape') clearFocus();
+    });
+
+    return graph;
+  }
+
+  function updateStyles() {
+    if (!currentData || !graph) return;
+
+    getColorScales();
+    syncCurrentNodePositionsFromGraph();
+    assignEdgePorts(currentData.nodes, currentData.edges);
+    annotateEdgeGeometry(currentData.edges);
+
+    graph.updateNodeData(buildNodeUpdates());
+    graph.updateEdgeData(buildEdgeUpdates());
+    graph.draw();
+  }
+
+  async function renderCommunity() {
+    const sel = d3.select('#commSelect');
+    const id = sel.property('value');
+
+    if (!id) return;
+
+    currentCommId = id;
+    focusedNodeId = null;
+    edgeFilterApplied = false;
+
+    const dmin = +d3.select('#degMin').property('value');
+    const dmax = +d3.select('#degMax').property('value');
+
+    const raw = window.allCommunities.find(d => String(d.comm) === id);
+
+    if (!raw) {
+      console.warn('community does not exist:', id);
+      return;
+    }
+
+    const filtered = buildFilteredCommunity(raw, dmin, dmax);
+
+    const preSelectedSampleIndices = useDifferenceDisplay
+      ? computeGlobalDifferenceDisplayIndices(filtered.nodes)
+      : null;
+
+    const autoFiltered = applyAutoNodeFilterByDisplayedSamples(filtered, preSelectedSampleIndices);
+
+    computeLayoutOnce(autoFiltered);
+
+    const directedData = sanitizeForG6(autoFiltered);
+    const data = combineEdgesToUndirected(directedData);
+
+    assignEdgePorts(data.nodes, data.edges);
+    annotateEdgeGeometry(data.edges);
+
+    currentData = data;
+    window.currentData = currentData;
+
+    globalDifferenceDisplayIndices = useDifferenceDisplay
+      ? (
+          Array.isArray(preSelectedSampleIndices)
+            ? preSelectedSampleIndices
+            : computeGlobalDifferenceDisplayIndices(data.nodes)
+        )
+      : computeGlobalDifferenceDisplayIndices(data.nodes);
+
+    rebuildFocusIndex(data);
+    invalidateSprites();
+
+    updateValueRangeInputs(data.nodes);
+    setEdgeRangeInputs(data.edges);
+    renderStageLegend();
+
+    ensureGraph();
+
+    await refreshGraphData({ fit: true });
+  }
+
+  async function savePNG() {
+    if (!graph) return;
+
+    let dataURL = '';
+
+    try {
+      dataURL = await graph.toDataURL({
+        mode: 'overall',
+        type: 'image/png',
+        pixelRatio: EXPORT_PNG_PIXEL_RATIO,
+        backgroundColor: '#ffffff',
+      });
+    } catch (err) {
+      dataURL = await graph.toDataURL({
+        mode: 'overall',
+        type: 'image/png'
+      });
+    }
+
+    const [head, content] = dataURL.split(',');
+    const contentType = head.match(/:(.*?);/)[1];
+    const bstr = atob(content);
+
+    let length = bstr.length;
+    const u8arr = new Uint8Array(length);
+
+    while (length--) {
+      u8arr[length] = bstr.charCodeAt(length);
+    }
+
+    const blob = new Blob([u8arr], { type: contentType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download = `${currentCommId || 'community'}_hd.png`;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
+  }
+
+  function getPortPlacementByKey(key) {
+    const hit = NODE_PORTS_META.find(p => p.key === key);
+    return hit ? hit.placement : [0.5, 0.5];
+  }
+
+  function getPortWorldPosition(node, portKey) {
+    const [px, py] = getPortPlacementByKey(portKey);
+    return {
+      x: node.x + (px - 0.5) * NODE_SIZE,
+      y: node.y + (py - 0.5) * NODE_SIZE,
+    };
+  }
+
+  function getQuadraticControlPoint(p1, p2, offset) {
+    const mx = (p1.x + p2.x) / 2;
+    const my = (p1.y + p2.y) / 2;
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    return { x: mx + nx * offset, y: my + ny * offset };
+  }
+
+  function getSelfLoopPath(node, offset = 24) {
+    const r = NODE_SIZE * 0.55 + Math.abs(offset);
+    const x = node.x;
+    const y = node.y;
+    return `M ${x} ${y - NODE_SIZE * 0.48} C ${x + r} ${y - r}, ${x + r} ${y + r}, ${x} ${y + NODE_SIZE * 0.48}`;
+  }
+
+  function getEdgeSvgPath(edge, nodeMap) {
+    const s = nodeMap.get(String(edge.source));
+    const t = nodeMap.get(String(edge.target));
+    if (!s || !t) return '';
+
+    if (String(edge.source) === String(edge.target)) {
+      return getSelfLoopPath(s, edge._curveOffset || 24);
+    }
+
+    const p1 = getPortWorldPosition(s, edge._sourcePort || 'p0');
+    const p2 = getPortWorldPosition(t, edge._targetPort || 'p36');
+
+    if ((edge._edgeType || 'line') === 'quadratic') {
+      const c = getQuadraticControlPoint(p1, p2, edge._curveOffset || 0);
+      return `M ${p1.x} ${p1.y} Q ${c.x} ${c.y} ${p2.x} ${p2.y}`;
+    }
+
+    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+  }
+
+  function getEdgeLabelPosition(edge, nodeMap) {
+    const s = nodeMap.get(String(edge.source));
+    const t = nodeMap.get(String(edge.target));
+    if (!s || !t) return null;
+
+    if (String(edge.source) === String(edge.target)) {
+      return { x: s.x + NODE_SIZE * 0.8, y: s.y - NODE_SIZE * 0.8 };
+    }
+
+    const p1 = getPortWorldPosition(s, edge._sourcePort || 'p0');
+    const p2 = getPortWorldPosition(t, edge._targetPort || 'p36');
+
+    if ((edge._edgeType || 'line') === 'quadratic') {
+      const c = getQuadraticControlPoint(p1, p2, edge._curveOffset || 0);
+      const t0 = 0.5;
+      const x = (1 - t0) * (1 - t0) * p1.x + 2 * (1 - t0) * t0 * c.x + t0 * t0 * p2.x;
+      const y = (1 - t0) * (1 - t0) * p1.y + 2 * (1 - t0) * t0 * c.y + t0 * t0 * p2.y;
+      return { x, y };
+    }
+
+    return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  }
+
+  function escapeXml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  function buildSvgMarkup() {
+    if (!currentData) return '';
+
+    getColorScales();
+    rebuildNodeSpritesIfNeeded();
+    assignEdgePorts(currentData.nodes, currentData.edges);
+    annotateEdgeGeometry(currentData.edges);
+
+    const nodeUpdates = computeNodeStyleUpdates(currentData.nodes);
+    const visibleEdges = currentData.edges.filter(edgePassesRange);
+    const edgeUpdates = computeEdgeStyleUpdates(visibleEdges);
+    const nodeStyleMap = new Map(nodeUpdates.map(n => [String(n.id), n.style]));
+    const edgeStyleMap = new Map(edgeUpdates.map(e => [String(e.id), e.style]));
+    const nodeMap = new Map(currentData.nodes.map(n => [String(n.id), n]));
+
+    const xs = currentData.nodes.map(n => n.x);
+    const ys = currentData.nodes.map(n => n.y);
+    const minX = Math.min(...xs) - NODE_SIZE - EXPORT_PADDING;
+    const minY = Math.min(...ys) - NODE_SIZE - EXPORT_PADDING;
+    const maxX = Math.max(...xs) + NODE_SIZE + EXPORT_PADDING;
+    const maxY = Math.max(...ys) + NODE_SIZE + EXPORT_PADDING;
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    const edgeSvg = visibleEdges.map(edge => {
+      const style = edgeStyleMap.get(String(edge.id)) || {};
+      const path = getEdgeSvgPath(edge, nodeMap);
+      if (!path) return '';
+      const stroke = style.stroke || '#999';
+      const opacity = Number.isFinite(style.strokeOpacity) ? style.strokeOpacity : 1;
+      const lineWidth = Number.isFinite(style.lineWidth) ? style.lineWidth : 1.2;
+      const labelText = style.labelText || '';
+      const labelPos = labelText ? getEdgeLabelPosition(edge, nodeMap) : null;
+      const labelFontSize = style.labelFontSize || 11;
+
+      let labelSvg = '';
+      if (labelText && labelPos) {
+        const text = escapeXml(labelText);
+        const estW = Math.max(18, labelText.length * labelFontSize * 0.68);
+        const estH = labelFontSize + 6;
+        labelSvg = `
+          <text x="${labelPos.x}" y="${labelPos.y + labelFontSize * 0.32}" text-anchor="middle" font-size="${labelFontSize}" font-weight="700" fill="#111">${text}</text>`;
+      }
+
+      return `
+        <g>
+          <path d="${path}" fill="none" stroke="${escapeXml(stroke)}" stroke-width="${lineWidth}" stroke-opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round"></path>
+          ${labelSvg}
+        </g>`;
+    }).join('');
+
+    const nodeSvg = currentData.nodes.map(node => {
+      const style = nodeStyleMap.get(String(node.id)) || {};
+      const opacity = Number.isFinite(style.opacity) ? style.opacity : 1;
+      const src = style.src || node._sprite || '';
+      const x = node.x - NODE_SIZE / 2;
+      const y = node.y - NODE_SIZE / 2;
+      return `
+        <image href="${src}" x="${x}" y="${y}" width="${NODE_SIZE}" height="${NODE_SIZE}" opacity="${opacity}"></image>`;
+    }).join('');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="${minX} ${minY} ${width} ${height}">
+  <rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="#ffffff"></rect>
+  ${edgeSvg}
+  ${nodeSvg}
+</svg>`;
+  }
+
+  function saveSVG() {
+    const svgText = buildSvgMarkup();
+    if (!svgText) return;
+
+    const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentCommId || 'community'}_hd.svg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function buildSessionJSON() {
+    return {
+      sid: getSessionId(),
+      community: d3.select('#commSelect').property('value'),
+      degreeRange: {
+        min: +d3.select('#degMin').property('value'),
+        max: +d3.select('#degMax').property('value'),
+      },
+      dataFilter: {
+        dataType: d3.select('#dataType').property('value'),
+        omicsType: d3.select('#omicsType').property('value'),
+        valueRange: {
+          min: +d3.select('#rangeMin').property('value'),
+          max: +d3.select('#rangeMax').property('value'),
+        },
+      },
+      edgeFilter: {
+        applied: edgeFilterApplied,
+        metric: d3.select('#edgeMetric').property('value'),
+        range: {
+          min: +d3.select('#eRangeMin').property('value'),
+          max: +d3.select('#eRangeMax').property('value'),
+        },
+        decimals: EDGE_DECIMALS,
+      },
+      colors: {
+        exp: {
+          neg: d3.select('#expNeg').property('value'),
+          zero: d3.select('#expZero').property('value'),
+          pos: d3.select('#expPos').property('value')
+        },
+        mty: {
+          neg: d3.select('#mtyNeg').property('value'),
+          zero: d3.select('#mtyZero').property('value'),
+          pos: d3.select('#mtyPos').property('value')
+        },
+        snv: {
+          neg: d3.select('#snvNeg').property('value'),
+          zero: d3.select('#snvZero').property('value'),
+          pos: d3.select('#snvPos').property('value')
+        },
+        cnv: {
+          neg: d3.select('#cnvNeg').property('value'),
+          zero: d3.select('#cnvZero').property('value'),
+          pos: d3.select('#cnvPos').property('value')
+        },
+        edge: {
+          neg: d3.select('#edgeNeg').property('value'),
+          zero: d3.select('#edgeZero').property('value'),
+          pos: d3.select('#edgePos').property('value')
+        },
+      },
+      useInteractMode,
+      useDifferenceDisplay,
+      globalDifferenceDisplayIndices,
+      autoNodeFilterInfo,
+      autoNodeFilter: {
+        expThreshold: +d3.select('#expThresholdValue').property('value'),
+        mtyThreshold: +d3.select('#mtyThresholdValue').property('value'),
+        thresholdRanges: autoNodeThresholdRanges,
+      },
+      omicsMetric,
+      focusedNodeId,
+      graphType: 'undirected_merged_edges',
+      undirectedRule: 'For each unordered node pair, all directed edges are merged. Numeric edge fields are algebraically summed; the final sign/color is based on the summed selected edge metric.',
+      data: currentData,
+      source: getJsonPath(),
+      savedAt: new Date().toISOString(),
+    };
+  }
+
+  function saveJSON() {
+    const state = buildSessionJSON();
+    const text = JSON.stringify(state, null, 2);
+    const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const sid = state.sid || 'nosid';
+    const comm = state.community || 'community';
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download = `session_${sid}_${comm}.json`;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
+  }
+
+  async function init() {
+    getColorScales();
+
+    const sid = getSessionId();
+    const jsonPath = getJsonPath();
+
+    try {
+      const res = await fetch(jsonPath);
+
+      if (!res.ok) {
+        throw new Error(`Failed to load JSON: ${jsonPath} (${res.status})`);
+      }
+
+      const json = await res.json();
+      const dataArr = Array.isArray(json) ? json : Object.values(json);
+
+      window.allCommunities = dataArr;
+
+      const sel = d3.select('#commSelect');
+
+      dataArr.forEach(item => {
+        sel.append('option')
+          .attr('value', item.comm)
+          .text(`Network ${item.comm}`);
+      });
+
+      if (dataArr.length) {
+        sel.property('value', dataArr[0].comm);
+      }
+
+      sel.on('change', renderCommunity);
+
+      d3.selectAll('#degMin, #degMax').on('change', renderCommunity);
+
+      d3.selectAll('#colorPickers input[type="color"]').on('input', () => {
+        getColorScales();
+        invalidateSprites();
+        updateStyles();
+      });
+
+      d3.selectAll('#edgeNeg, #edgeZero, #edgePos').on('input', () => {
+        getColorScales();
+        updateStyles();
+      });
+
+      d3.select('#showEdgeLabels').on('change', function () {
+        showEdgeLabels = this.checked;
+        updateStyles();
+      });
+
+      d3.select('#differenceDisplayToggle').on('change', function () {
+        useDifferenceDisplay = this.checked;
+        renderCommunity();
+      });
+
+      function syncThresholdControls(type) {
+        const slider = d3.select(`#${type}ThresholdSlider`);
+        const input = d3.select(`#${type}ThresholdValue`);
+
+        slider.on('input', function () {
+          input.property('value', this.value);
+
+          if (useDifferenceDisplay) {
+            renderCommunity();
+          }
+        });
+
+        input.on('change', function () {
+          let v = +this.value;
+          const min = +input.property('min');
+          const max = +input.property('max');
+
+          if (!Number.isFinite(v)) v = min;
+
+          v = Math.min(max, Math.max(min, v));
+
+          input.property('value', v.toFixed(3));
+          slider.property('value', v.toFixed(3));
+
+          if (useDifferenceDisplay) {
+            renderCommunity();
+          }
+        });
+      }
+
+      syncThresholdControls('exp');
+      syncThresholdControls('mty');
+
+      d3.select('#omicsType').on('change', () => {
+        const omicsType = d3.select('#omicsType').property('value');
+        const metric = omicsMetric[omicsType] || 'raw';
+
+        d3.select('#dataType').property('value', metric);
+
+        if (currentData) {
+          updateValueRangeInputs(currentData.nodes);
+          invalidateSprites();
+          updateStyles();
+        }
+      });
+
+      d3.select('#dataType').on('change', () => {
+        const omicsType = d3.select('#omicsType').property('value');
+        const metric = d3.select('#dataType').property('value');
+
+        omicsMetric[omicsType] = metric;
+
+        if (currentData) {
+          updateValueRangeInputs(currentData.nodes);
+          invalidateSprites();
+          updateStyles();
+        }
+      });
+
+      d3.select('#edgeMetric').on('change', async () => {
+        if (!currentData) return;
+
+        edgeFilterApplied = false;
+        setEdgeRangeInputs(currentData.edges);
+
+        await refreshGraphData({ fit: false });
+      });
+
+      d3.selectAll('#eRangeMin, #eRangeMax').on('change', () => {
+        // 不自动过滤，必须点 Filter edges 才过滤
+      });
+
+      d3.select('#edgeFilterBtn').on('click', async () => {
+        if (!currentData) return;
+
+        edgeFilterApplied = true;
+
+        await refreshGraphData({ fit: false });
+      });
+
+      d3.select('#filterBtn').on('click', () => {
+        invalidateSprites();
+        updateStyles();
+      });
+
+      d3.select('#useInteract').on('change', function () {
+        useInteractMode = this.checked;
+        updateStyles();
+      });
+
+      document.getElementById('fitBtn').onclick = () => {
+        if (graph) {
+          graph.fitView({
+            when: 'always',
+            direction: 'both',
+            padding: 8,
+          });
+        }
+      };
+
+      document.getElementById('savePNGBtn').onclick = () => savePNG();
+      document.getElementById('saveSVGBtn').onclick = () => saveSVG();
+      document.getElementById('zoomIn').onclick = () => graph && graph.zoomBy(1.2);
+      document.getElementById('zoomOut').onclick = () => graph && graph.zoomBy(1 / 1.2);
+
+      await renderCommunity();
+
+      if (sid) {
+        fetch('/cmt_figures/track/viewer_proxy.php?sid=' + encodeURIComponent(sid) + '&page=directed').catch(() => {});
+      }
+    } catch (err) {
+      console.error('Viewer initialization failed:', err);
+    }
+  }
+
+  init();
+})();
+  </script>
+</body>
+</html>
